@@ -8,6 +8,7 @@ set(AUTOPILOT_TEST_SOURCES
     core/test_action.cpp
     storage/test_macro_serializer.cpp
     storage/test_macro_repository.cpp
+    storage/test_ocr_result_repository.cpp
     web/test_cdp_message.cpp
     web/test_browser_event.cpp
     scripting/test_lua_sandbox.cpp

@@ -2,6 +2,14 @@ qt_add_executable(AutoPilot
     main.cpp
     MainWindow.h
     MainWindow.cpp
+    MacrosTab.h
+    MacrosTab.cpp
+    OcrTab.h
+    OcrTab.cpp
+    WebTab.h
+    WebTab.cpp
+    ImageTab.h
+    ImageTab.cpp
 )
 
 target_link_libraries(AutoPilot PRIVATE
@@ -13,6 +21,9 @@ target_link_libraries(AutoPilot PRIVATE
     autopilot_storage
     autopilot_recorder
     autopilot_player
+    autopilot_web
+    autopilot_vision
+    nlohmann_json::nlohmann_json
 )
 
 set_target_properties(AutoPilot PROPERTIES
