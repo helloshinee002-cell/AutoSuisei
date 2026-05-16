@@ -1,0 +1,3 @@
+add_library(autopilot_core INTERFACE)
+target_include_directories(autopilot_core INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(autopilot_core INTERFACE cxx_std_20)

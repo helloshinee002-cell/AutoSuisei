@@ -1,0 +1,31 @@
+name: Claude Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude_agent:
+    if: contains(github.event.comment.body, '@claude') || github.event_name == 'pull_request'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Claude Code Action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Analyze these changes against CLAUDE.md and .clauderules:
+            1. ตรวจสอบว่า test ครอบคลุม (TDD enforcement)
+            2. ห้ามมี raw new/delete หรือ hardcoded secrets
+            3. Module boundaries: core ไม่ depend gui/cli
+            4. Commit message ต้องเป็น Conventional Commits
+            รายงานเป็น PR comment พร้อมข้อเสนอแก้ไข

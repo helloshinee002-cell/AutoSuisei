@@ -1,0 +1,49 @@
+# AutoPilot — Coding Standards (Module-specific Rules)
+
+## Global C++ Rules
+[Memory]: ใช้ smart pointers เสมอ ห้ามใช้ raw `new`/`delete`
+  - Exception: WinAPI handles ที่ต้องใช้ RAII wrapper (เช่น `unique_ptr` ที่มี custom deleter)
+
+[Style]: ทุก public API ต้องมี Doxygen comment อธิบาย param/return/throws
+[Style]: Header ต้องใช้ `#pragma once` ห้ามใช้ include guards แบบเดิม
+[Style]: ไม่ใส่ `using namespace` ใน header
+
+[Errors]: throw `std::system_error` สำหรับ WinAPI failures (ดึงจาก `GetLastError()`)
+[Errors]: ไม่ swallow exception — log อย่างน้อย 1 ครั้งก่อน rethrow
+
+[Performance]: หลีกเลี่ยง Nested loop ที่ซับซ้อนเกิน O(n²) — ถ้าจำเป็นต้องคอมเมนต์เหตุผล
+[Performance]: ห้าม allocate ใน hot path (input hook callback, OCR pixel loop)
+
+## Module: recorder/
+[Logic]: Hook callback (`LowLevelKeyboardProc`, `LowLevelMouseProc`) ต้อง return เร็วที่สุด
+  - Queue event ลง lock-free queue → process ใน worker thread
+  - ห้ามทำ I/O หรือ allocate ใน callback โดยตรง
+[Logic]: ทุก hook ต้อง `UnhookWindowsHookEx` ใน destructor
+
+## Module: player/
+[Logic]: ก่อนใช้ `SendInput` ตรวจสอบว่า target window ยังเปิดอยู่
+[Logic]: รองรับ DPI scaling — แปลงพิกัดด้วย `GetDpiForWindow` ก่อน synthesize
+
+## Module: ocr/
+[Logic]: Preprocess pipeline default — grayscale → adaptive threshold → denoise
+[Logic]: คืน `OcrResult` พร้อม confidence score เสมอ (อย่าทิ้งข้อมูล)
+[Logic]: รองรับภาษา eng + tha + osd (orientation detection)
+[Performance]: Reuse `tesseract::TessBaseAPI` instance ผ่าน object pool ห้าม init ใหม่ทุกครั้ง
+
+## Module: storage/
+[Logic]: ทุก query ต้องใช้ parameterized statement ห้าม string concat
+[Logic]: เปิด SQLite ด้วย `PRAGMA journal_mode=WAL` และ `PRAGMA foreign_keys=ON`
+
+## Module: web/
+[Logic]: CDP message ต้อง parse JSON ด้วย nlohmann::json + validate schema
+[Logic]: Timeout ทุก request 30 วินาทีตามค่า default
+
+## Module: scripting/
+[Security]: Lua sandbox ต้อง remove `os.execute`, `io.popen`, `loadfile`, `dofile`
+[Security]: User script เข้าถึง filesystem ได้เฉพาะ path ที่ whitelist ใน config
+
+## Secrets
+[Security]: ห้าม Hardcode API keys, passwords, tokens — ใช้:
+  - `.env` (ผ่าน dotenv-cpp) สำหรับ dev
+  - Windows DPAPI (`CryptProtectData`) สำหรับ production credential store
+[Security]: `.env` ต้องอยู่ใน `.gitignore` เสมอ

@@ -1,0 +1,46 @@
+# Build
+build/
+out/
+cmake-build-*/
+CMakeUserPresets.json
+
+# vcpkg
+vcpkg_installed/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Generated
+compile_commands.json
+
+# Logs
+*.log
+logs/
+
+# Secrets
+.env
+.env.local
+*.pem
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Qt
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+
+# Test artifacts
+Testing/
+*.xml
+tests/data/*.png
+tests/data/*.jpg
+!tests/data/README.md
