@@ -42,6 +42,8 @@ target_compile_definitions(autopilot_tests PRIVATE
 # data/sections for the test exe so registrations survive into the binary.
 if(MSVC)
     target_link_options(autopilot_tests PRIVATE /OPT:NOREF /OPT:NOICF)
+    # EXPECT_THROW discards [[nodiscard]] return values by design
+    target_compile_options(autopilot_tests PRIVATE /wd4834)
 endif()
 
 # Set runtime env so test exe can find vcpkg DLLs + Tesseract traineddata
