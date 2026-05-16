@@ -18,3 +18,24 @@ target_link_libraries(AutoPilot PRIVATE
 set_target_properties(AutoPilot PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
+
+# Deploy Qt platform plugins next to the exe so it can find qwindows(d).dll
+# vcpkg's windeployqt has trouble locating debug DLLs, so we copy plugin
+# folders directly. Configuration-aware: pick debug vs release plugin set.
+if(WIN32)
+    set(_qt_plugin_root_debug
+        "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/Qt6/plugins")
+    set(_qt_plugin_root_release
+        "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/Qt6/plugins")
+    set(_qt_plugin_root "$<IF:$<CONFIG:Debug>,${_qt_plugin_root_debug},${_qt_plugin_root_release}>")
+
+    foreach(_subdir platforms styles imageformats)
+        add_custom_command(TARGET AutoPilot POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${_qt_plugin_root}/${_subdir}"
+                "$<TARGET_FILE_DIR:AutoPilot>/${_subdir}"
+            COMMENT "Deploying Qt plugin: ${_subdir}"
+            VERBATIM
+        )
+    endforeach()
+endif()
