@@ -10,6 +10,7 @@ Outputs CSV with columns:
     mean_confidence,line_count,warnings
 """
 import csv
+import json
 import re
 import sys
 import time
@@ -121,12 +122,17 @@ def looks_like_image(p: Path) -> bool:
 
 
 def main() -> int:
-    if len(sys.argv) < 3:
-        print("usage: bulk_extract.py <folder> <out.csv>", file=sys.stderr)
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    progress_json = "--progress-json" in flags  # ส่ง 1 JSON line ต่อภาพ ออก stdout
+
+    if len(args) < 2:
+        print("usage: bulk_extract.py <folder> <out.csv> [--progress-json]",
+              file=sys.stderr)
         return 1
 
-    folder = Path(sys.argv[1])
-    out_csv = Path(sys.argv[2])
+    folder = Path(args[0])
+    out_csv = Path(args[1])
     if not folder.is_dir():
         print(f"not a directory: {folder}", file=sys.stderr)
         return 2
@@ -139,9 +145,14 @@ def main() -> int:
 
     images = sorted([p for p in folder.iterdir() if p.is_file() and looks_like_image(p)])
     print(f"Found {len(images)} images. Loading PaddleOCR…", file=sys.stderr)
+    if progress_json:
+        print(json.dumps({"event": "start", "total": len(images)}), flush=True)
     t0 = time.time()
     engine = RapidOCR()
     print(f"Model loaded in {time.time()-t0:.1f}s. Processing…", file=sys.stderr)
+    if progress_json:
+        print(json.dumps({"event": "ready", "load_time": time.time() - t0}),
+              flush=True)
 
     with_pc = 0
     with_sn = 0
@@ -158,6 +169,12 @@ def main() -> int:
                 result, _ = engine(str(img))
             except Exception as e:  # noqa: BLE001
                 writer.writerow([0, img.name, "", "", "", "", "", 0, 0, f"OCR error: {e}"])
+                if progress_json:
+                    print(json.dumps({
+                        "event": "row", "i": i, "total": len(images),
+                        "filename": img.name, "pc_no": "", "serial_no": "",
+                        "error": str(e),
+                    }), flush=True)
                 continue
 
             confs = [float(score) for (_box, _text, score) in (result or [])]
@@ -185,6 +202,23 @@ def main() -> int:
                 f"{mean_conf:.3f}", len(confs), "; ".join(warnings_list),
             ])
 
+            if progress_json:
+                print(json.dumps({
+                    "event": "row",
+                    "i": i,
+                    "total": len(images),
+                    "photo_index": meta["photo_index"],
+                    "filename": img.name,
+                    "pc_no": pc_no,
+                    "serial_no": serial,
+                    "batch_id": meta["batch_id"],
+                    "photo_date": meta["photo_date"],
+                    "pc_range": meta["pc_range"],
+                    "mean_confidence": mean_conf,
+                    "with_pc": with_pc,
+                    "with_sn": with_sn,
+                }), flush=True)
+
             if i % 10 == 0:
                 elapsed = time.time() - t1
                 rate = i / elapsed if elapsed > 0 else 0
@@ -196,6 +230,14 @@ def main() -> int:
     elapsed = time.time() - t1
     pc_rate = 100 * with_pc / len(images) if images else 0
     sn_rate = 100 * with_sn / len(images) if images else 0
+    if progress_json:
+        print(json.dumps({
+            "event": "done",
+            "total": len(images),
+            "with_pc": with_pc,
+            "with_sn": with_sn,
+            "elapsed_sec": elapsed,
+        }), flush=True)
     print(f"\n=== Summary ===", file=sys.stderr)
     print(f"Total: {len(images)} photos in {elapsed:.1f}s "
           f"({elapsed/len(images):.1f}s/photo)", file=sys.stderr)

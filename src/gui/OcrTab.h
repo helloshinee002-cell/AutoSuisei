@@ -9,6 +9,7 @@
 #include "ocr/OcrEngine.h"
 
 class QLabel;
+class QProcess;
 class QPushButton;
 class QTableWidget;
 
@@ -27,6 +28,11 @@ class OcrTab : public QWidget {
 public:
     explicit OcrTab(storage::IOcrResultRepository& repo, QWidget* parent = nullptr);
 
+signals:
+    /** ส่ง bulk extract results ไปให้ Review tab ตรวจสอบความถูกต้อง */
+    void sendToReviewRequested(const std::vector<ocr::AssetInfo>& infos,
+                                const QString& folder);
+
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
@@ -36,6 +42,9 @@ private slots:
     void onBulkFolder();
     void onExport();
     void onClear();
+    void onSendToReview();
+    void onBulkStdout();
+    void onBulkFinished(int exitCode);
 
 private:
     void processFiles(const QStringList& paths);
@@ -49,12 +58,20 @@ private:
     ocr::AssetExtractor extractor_;
     bool assetMode_{false};  ///< true เมื่ออยู่ใน bulk mode (header เปลี่ยนเป็น PC No./Serial)
 
+    std::vector<ocr::AssetInfo> bulkResults_;  ///< เก็บผล bulk extract ล่าสุด
+    QString bulkFolder_;                        ///< โฟลเดอร์ของ bulk extract ล่าสุด
+    QProcess* bulkProcess_{};                   ///< Python PaddleOCR subprocess
+    QByteArray bulkStdoutBuf_;                  ///< buffer สำหรับ JSON line parsing
+    int bulkExpected_{0};                       ///< จำนวนภาพทั้งหมด (จาก "start" event)
+    int bulkProcessed_{0};                      ///< จำนวนภาพที่ประมวลผลเสร็จ
+
     QTableWidget* table_{};
     QLabel* status_{};
     QPushButton* browseBtn_{};
     QPushButton* bulkBtn_{};
     QPushButton* exportBtn_{};
     QPushButton* clearBtn_{};
+    QPushButton* sendToReviewBtn_{};
 };
 
 }  // namespace autopilot::gui

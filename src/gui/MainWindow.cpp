@@ -2,11 +2,8 @@
 
 #include <QTabWidget>
 
-#include "ImageTab.h"
-#include "MacrosTab.h"
 #include "OcrTab.h"
 #include "ReviewTab.h"
-#include "WebTab.h"
 #include "player/IPlayer.h"
 #include "recorder/IRecorder.h"
 #include "storage/IMacroRepository.h"
@@ -28,12 +25,19 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
     resize(900, 600);
 
     auto* tabs = new QTabWidget(this);
-    tabs->addTab(new MacrosTab(*recorder_, *player_, *macroRepo_), "Macros");
-    tabs->addTab(new OcrTab(*ocrRepo_), "OCR");
-    tabs->addTab(new WebTab(*macroRepo_), "Web");
-    tabs->addTab(new ImageTab(), "Image Click");
-    tabs->addTab(new ReviewTab(), "Review");
+    auto* ocrTab = new OcrTab(*ocrRepo_);
+    auto* reviewTab = new ReviewTab();
+    tabs->addTab(ocrTab, "OCR");
+    const int reviewIdx = tabs->addTab(reviewTab, "Review");
     setCentralWidget(tabs);
+
+    // OCR bulk extract → Review tab พร้อม preview ภาพทันที ไม่ต้อง save/load CSV
+    connect(ocrTab, &OcrTab::sendToReviewRequested, this,
+            [tabs, reviewTab, reviewIdx](const std::vector<ocr::AssetInfo>& infos,
+                                          const QString& folder) {
+                reviewTab->loadFromExtraction(infos, folder);
+                tabs->setCurrentIndex(reviewIdx);
+            });
 }
 
 MainWindow::~MainWindow() {

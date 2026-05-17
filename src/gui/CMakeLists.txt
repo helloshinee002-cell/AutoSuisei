@@ -28,6 +28,13 @@ target_link_libraries(AutoPilot PRIVATE
     nlohmann_json::nlohmann_json
 )
 
+# Bake the project's scripts/ path into the exe so it can find bulk_extract.py
+# at runtime without manual env-var setup. AUTOPILOT_SCRIPTS_DIR env var still
+# overrides this if set.
+target_compile_definitions(AutoPilot PRIVATE
+    AUTOPILOT_SCRIPTS_DIR="${CMAKE_SOURCE_DIR}/scripts"
+)
+
 set_target_properties(AutoPilot PROPERTIES
     WIN32_EXECUTABLE TRUE
 )

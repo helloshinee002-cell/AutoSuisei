@@ -1,8 +1,11 @@
 #pragma once
 
+#include <vector>
+
 #include <QString>
 #include <QWidget>
 
+#include "ocr/AssetExtractor.h"
 #include "ocr/ReviewModel.h"
 
 class QCheckBox;
@@ -25,12 +28,19 @@ class ReviewTab : public QWidget {
 public:
     explicit ReviewTab(QWidget* parent = nullptr);
 
+    /** โหลดผล bulk extract เข้า ReviewModel ตรง ๆ (ไม่ต้อง save/load CSV) +
+     *  ตั้ง images folder + เลือก row แรกที่ยังไม่ verified
+     *  ใช้เมื่อ OcrTab.sendToReviewRequested ส่งสัญญาณมา */
+    void loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
+                            const QString& folder);
+
 private slots:
     void onLoadCsv();
     void onLoadFolder();
     void onTableRowClicked(int row, int column);
     void onApplyAndNext();
     void onSave();
+    void onRename();
 
 private:
     void rebuildTable();
@@ -60,6 +70,12 @@ private:
     QCheckBox* verifiedCheck_{};
     QLabel* originalLabel_{};
     QPushButton* applyBtn_{};
+
+    // bottom: rename controls
+    QCheckBox* renamePcCheck_{};
+    QCheckBox* renameSerialCheck_{};
+    QCheckBox* renameNotesCheck_{};
+    QPushButton* renameBtn_{};
 };
 
 }  // namespace autopilot::gui

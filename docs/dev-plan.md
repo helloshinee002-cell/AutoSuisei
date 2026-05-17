@@ -297,7 +297,61 @@ Phase 9.5 done. Future Phase 10 (image preprocessing) or Phase 11 (fine-tune det
 
 ### Updated commit
 - `4ce1f25` initial Phase 9.5 (lone-digit only)
-- `__pending__` iterate primary matches + comparison script
+- `5df5cca` iterate primary matches + comparison script
+
+---
+
+## Phase 9.6 — OCR→Review tab handoff (done 2026-05-17)
+
+**Context**: หลัง Phase 9.5 user ใช้ Review ก็ไหลลื่นดี แต่ flow มี friction:
+ต้อง Save CSV จาก bulk_extract → เปิด Review tab → Load CSV → Load folder
+4 ขั้นตอนทุกครั้ง
+
+**Implementation**:
+- New signal `OcrTab::sendToReviewRequested(infos, folder)`
+- New public method `ReviewTab::loadFromExtraction(infos, folder)` — สร้าง temp CSV
+  ใน `tempdir()` แล้ว `loadCsv` เพื่อ reuse code path เดิม
+- MainWindow lambda connects signal → กด button → switch tab + populate ทันที
+- "Send to Review →" button ใน OCR tab (enabled หลัง bulk extract เสร็จ)
+
+---
+
+## Phase 9.7 — QProcess + PaddleOCR + live row updates (done 2026-05-17)
+
+**Context**: User ทดสอบ AutoPilot.exe ที่ build จาก Phase 9.6 พบ 2 ปัญหา:
+1. UI ค้าง ("Not Responding") เพราะ OCR loop รัน synchronous บน main thread
+2. ผลลัพธ์ว่างเปล่า เพราะ C++ AssetExtractor ใช้ Tesseract (baseline 7.8%)
+   ไม่ใช่ PaddleOCR ที่ Python sidecar ใช้ (97.9%)
+
+**Fix**: ย้าย bulk extract pipeline ไปใช้ `QProcess` รัน `python scripts/bulk_extract.py`
+แทน in-process Tesseract:
+- เพิ่ม `--progress-json` flag ใน bulk_extract.py → emit 1 JSON line ต่อภาพ
+- OcrTab::onBulkStdout: parse JSON line buffer → addAssetRow + status update
+- ลบ `QProgressDialog` (modal blocker) — ใช้ inline status label
+- CMake compile def `AUTOPILOT_SCRIPTS_DIR` ชี้ไปที่ `${CMAKE_SOURCE_DIR}/scripts`
+  (override ได้ผ่าน env var)
+
+ผลคือ UI ไม่ค้าง + ใช้ PaddleOCR 97.9% accuracy + row โผล่ทีละแถว live
+
+---
+
+## Phase 9.8 — Prune tabs + Rename feature (done 2026-05-17)
+
+**Context**: User ขอให้เอา Macros / Web / Image Click ออกจาก menu (โปรเจกต์
+ตอนนี้ focus PC inventory เป็นหลัก) + เพิ่ม Rename feature ใน Review เพื่อ
+เปลี่ยนชื่อไฟล์ภาพให้ตรงกับ PC No.
+
+**Implementation**:
+- MainWindow: drop 3 addTab calls + remove headers ที่ไม่ใช้ — ตอนนี้เหลือ
+  [OCR] [Review] เท่านั้น (object internals ยังเก็บไว้ ไม่ break compilation)
+- ReviewTab bottom bar:
+  - ☑ PC No.  ☐ Serial  ☐ Notes (checkbox)
+  - "Rename images…" button
+- Rename logic: filename = `<selected_fields_joined_with_underscore>.ext`
+  - Sanitize Windows-illegal chars (\ / : * ? " < > |) → `_`
+  - Collision handling: append `-2`, `-3`, ... if target exists
+  - Update model.filename + table after each rename so subsequent ops see new name
+  - User ขอเอา confirm dialog ออก → rename ทันทีเมื่อกดปุ่ม
 
 ---
 
