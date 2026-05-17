@@ -283,6 +283,22 @@
 
 **Acceptance**: PC No. mismatch rate < 1% on Train2 (was 2.4% in v2)
 
+### v4 result (iterate primary matches)
+- v2 baseline: 617/632 (97.6%) — wrong=8, missed=7
+- v3 (range filter on lone-digit only): 619/632 (97.9%) — wrong=6, missed=7
+- v4 (range filter on **both** primary & lone-digit): **622/632 (98.4%)** — wrong=3, missed=7
+
+### Remaining failures (10/632 = 1.6%) — at regex limit
+1. **User intent** (1): _101.jpg has both "303" sticker and "023" tape — user picked 023; OCR can't disambiguate
+2. **OCR true miss** (2): _130.jpg, _74.jpg — PaddleOCR didn't return the truth value in OCR text at all (truth=423/448 absent)
+3. **OCR didn't find any 2-3 digit** (7): missed photos — would need preprocessing (rotation/contrast) or ROI detection
+
+Phase 9.5 done. Future Phase 10 (image preprocessing) or Phase 11 (fine-tune detection) could push the missed-7 group, but ROI of further OCR investment is low past 98.4%.
+
+### Updated commit
+- `4ce1f25` initial Phase 9.5 (lone-digit only)
+- `__pending__` iterate primary matches + comparison script
+
 ---
 
 ## Decisions Log

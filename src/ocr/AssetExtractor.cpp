@@ -61,21 +61,36 @@ std::pair<int, int> AssetExtractor::parsePcRangeBounds(const std::string& rangeH
 
 std::string AssetExtractor::parsePcNoFromText(const std::string& text,
                                               const std::string& rangeHint) {
-    // Primary: "no.45", "No 6", "no. 45", "pc no.45", "N°45", "no-18"
-    static const std::regex primary{
-        R"((?:^|[^A-Za-z])[Nn][Oo°][\.\-\s:]*([0-9]{1,4})\b)"};
-    std::smatch m;
-    if (std::regex_search(text, m, primary)) {
-        return m[1].str();
-    }
-
-    // Fallback (Phase 9.2 + 9.5): บรรทัดที่เป็น 2-3 digit ล้วน
-    // ถ้ามี rangeHint → เลือก candidate ที่อยู่ใน range ก่อน
-    static const std::regex standaloneDigit{R"(^\s*([0-9]{2,3})\s*$)"};
     const auto [lo, hi] = parsePcRangeBounds(rangeHint);
     const bool haveRange = lo > 0 && hi >= lo;
 
-    std::string firstSeen;
+    auto inRange = [&](const std::string& digits) -> bool {
+        if (!haveRange) return true;
+        try {
+            const int n = std::stoi(digits);
+            return n >= lo && n <= hi;
+        } catch (...) { return false; }
+    };
+
+    // Primary: "no.45", "No 6", "no. 45", "pc no.45", "N°45", "no-18"
+    // OCR เพี้ยนเช่น "Dell Inc. 1.21.0" → "Dell/no7.27.0" ทำให้ regex จับ "no7"
+    // ก่อนที่จะเจอ "No.317" จริงๆ — Phase 9.5 iterate ทุก match แล้ว prefer in-range
+    static const std::regex primary{
+        R"((?:^|[^A-Za-z])[Nn][Oo°][\.\-\s:]*([0-9]{1,4})\b)"};
+    std::string firstPrimary;
+    auto pit = std::sregex_iterator(text.begin(), text.end(), primary);
+    for (; pit != std::sregex_iterator(); ++pit) {
+        const auto digits = (*pit)[1].str();
+        if (firstPrimary.empty()) firstPrimary = digits;
+        if (inRange(digits)) return digits;
+    }
+    if (!firstPrimary.empty() && !haveRange) return firstPrimary;
+    // ถ้ามี range hint แต่ไม่มี primary match in-range → ลอง lone-digit ต่อ
+    // (อย่ารีบ return firstPrimary ที่ out-of-range — lone-digit อาจมี in-range)
+
+    // Fallback (Phase 9.2 + 9.5): บรรทัดที่เป็น 2-3 digit ล้วน
+    static const std::regex standaloneDigit{R"(^\s*([0-9]{2,3})\s*$)"};
+    std::string firstLone;
     std::stringstream ss(text);
     std::string line;
     while (std::getline(ss, line)) {
@@ -83,16 +98,15 @@ std::string AssetExtractor::parsePcNoFromText(const std::string& text,
         std::smatch lm;
         if (!std::regex_match(line, lm, standaloneDigit)) continue;
         const auto digits = lm[1].str();
-        if (firstSeen.empty()) firstSeen = digits;
-        if (!haveRange) return digits;  // no hint → take first
-        try {
-            const int n = std::stoi(digits);
-            if (n >= lo && n <= hi) return digits;
-        } catch (...) {
-            // continue
-        }
+        if (firstLone.empty()) firstLone = digits;
+        if (inRange(digits)) return digits;
     }
-    return firstSeen;  // ไม่มีตัวใน range → fallback to first 2-3 digit (อาจ false positive)
+
+    // ลำดับ fallback ถ้าไม่มี in-range:
+    //   1. primary match (เก่งกว่า lone-digit เพราะเห็น "no" prefix)
+    //   2. lone-digit match
+    if (!firstPrimary.empty()) return firstPrimary;
+    return firstLone;
 }
 
 std::string AssetExtractor::parseSerialFromText(const std::string& text) {

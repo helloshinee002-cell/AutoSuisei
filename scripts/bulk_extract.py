@@ -48,29 +48,42 @@ def parse_range_bounds(hint: str) -> tuple[int, int]:
 
 
 def extract_pc_no(text: str, range_hint: str = "") -> str:
-    m = PC_NO_RE.search(text)
-    if m:
-        return m.group(1)
-    # fallback (Phase 9.2 + 9.5): standalone 2-3 digit line, prefer in-range when hint given
     lo, hi = parse_range_bounds(range_hint)
     have_range = lo > 0 and hi >= lo
-    first_seen = ""
+
+    def in_range(digits: str) -> bool:
+        if not have_range:
+            return True
+        try:
+            return lo <= int(digits) <= hi
+        except ValueError:
+            return False
+
+    # Primary "no.NN" — iterate all matches, prefer in-range (Phase 9.5)
+    first_primary = ""
+    for m in PC_NO_RE.finditer(text):
+        digits = m.group(1)
+        if not first_primary:
+            first_primary = digits
+        if in_range(digits):
+            return digits
+
+    # Lone-digit fallback
+    first_lone = ""
     for line in text.splitlines():
         lm = PC_NO_STANDALONE_LINE_RE.match(line)
         if not lm:
             continue
         digits = lm.group(1)
-        if not first_seen:
-            first_seen = digits
-        if not have_range:
+        if not first_lone:
+            first_lone = digits
+        if in_range(digits):
             return digits
-        try:
-            n = int(digits)
-            if lo <= n <= hi:
-                return digits
-        except ValueError:
-            continue
-    return first_seen
+
+    # No in-range — prefer primary over lone-digit
+    if first_primary:
+        return first_primary
+    return first_lone
 
 
 def extract_serial(text: str) -> str:

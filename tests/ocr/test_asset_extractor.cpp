@@ -168,17 +168,53 @@ TEST(AssetExtractor, RangeGuided_FallsBackToFirstWhenNoneInRange) {
     EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "025");
 }
 
-TEST(AssetExtractor, RangeGuided_PrimaryNoNNStillWins) {
-    // ถ้ามี "no.NN" ใน text — primary regex ยังชนะ (ไม่ filter range)
-    // เพราะ "no.NN" pattern แม่นกว่า lone-digit
+TEST(AssetExtractor, RangeGuided_InRangeLoneDigitBeatsOutOfRangePrimary) {
+    // Design Phase 9.5: range hint สำคัญพอ ๆ กับ "no" prefix —
+    // primary "no.50" ไม่อยู่ใน 301-400 → ผ่าน, lone-digit "317" ใน range → ชนะ
+    // เพราะ real data ของ Train2 มี "no.X" จาก misread "Dell Inc. 1.21.0" บ่อยมาก
     const std::string ocr = "no.50\n317\nbar";
-    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "50");
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "317");
+}
+
+TEST(AssetExtractor, RangeGuided_InRangePrimaryWinsOverInRangeLoneDigit) {
+    // ทั้งคู่ใน range — primary ที่มาก่อน (iteration order) ชนะ
+    const std::string ocr = "no.350\n400\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "350");
+}
+
+TEST(AssetExtractor, NoRangeHint_PrimaryAlwaysWinsOverLoneDigit) {
+    // ไม่มี range hint → primary ชนะเสมอ (behavior เดิม Phase 9.2)
+    const std::string ocr = "no.50\n317\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, ""), "50");
 }
 
 TEST(AssetExtractor, RangeGuided_EmptyHintBehavesLikeOriginal) {
     // ไม่มี hint → เลือก first 2-3 digit ตาม Phase 9.2 behavior
     EXPECT_EQ(AssetExtractor::parsePcNoFromText("025\n347\nbar", ""), "025");
     EXPECT_EQ(AssetExtractor::parsePcNoFromText("025\n347\nbar"), "025");
+}
+
+TEST(AssetExtractor, RangeGuided_IteratesPrimaryMatchesPrefersInRange) {
+    // เคสจริง _5.jpg: OCR เห็น "Dell/no7.27.0" (จาก BIOS 1.21.0 misread)
+    // ก่อนจะเจอ "No.317" — primary regex เดิมจะจับ "no7" ก่อน
+    // Phase 9.5: iterate ทุก primary match, prefer in-range → ได้ 317
+    const std::string ocr = "Dell/no7.27.0\nLaptop\nNo.317\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "317");
+}
+
+TEST(AssetExtractor, RangeGuided_PrimaryOutOfRangeFallsToLoneDigit) {
+    // เคสจริง _153.jpg: OCR "S/N.GPR2NW2NO.291" (291 จาก label เอาเมา)
+    // ก่อนเจอ "479" เป็น standalone digit — primary match 291 ไม่อยู่ใน 401-500
+    // → lone-digit "479" ชนะ
+    const std::string ocr = "S/N.GPR2NW2NO.291\nfoo\n479\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "401-500"), "479");
+}
+
+TEST(AssetExtractor, RangeGuided_NoMatchInRangeFallsToFirstPrimary) {
+    // ไม่มี primary หรือ lone-digit ใน range → preferred fall-back ตามลำดับ:
+    // first primary > first lone-digit (primary แม่นกว่าเพราะมี "no" prefix)
+    const std::string ocr = "no.50\nxyz\n100\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "50");
 }
 
 // =================== Dell serial / service tag ===================
