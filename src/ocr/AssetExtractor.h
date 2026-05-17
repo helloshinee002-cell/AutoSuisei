@@ -39,8 +39,19 @@ public:
     [[nodiscard]] AssetInfo extract(const std::string& imagePath);
 
     // ---------------- pure helpers ----------------
-    /** หา "no.NN" / "No 6" / "pc no.45" ใน text — case-insensitive, ผ่อนผัน whitespace */
+    /** หา "no.NN" / "No 6" / "pc no.45" ใน text — case-insensitive, ผ่อนผัน whitespace
+     *  มี fallback: line ที่เป็น 2-3 digit ล้วน */
     [[nodiscard]] static std::string parsePcNoFromText(const std::string& text);
+
+    /** เวอร์ชั่นที่รับ filename range hint (เช่น "301-400" จาก parsePcRangeFromFilename)
+     *  ใช้เพื่อ filter lone-digit fallback ให้เลือกเลขใน range ก่อน — กัน OCR หยิบเลขสุ่ม
+     *  จาก screen text ที่ไม่ใช่ PC No.
+     *  rangeHint ว่าง → behavior เหมือน parsePcNoFromText(text) */
+    [[nodiscard]] static std::string parsePcNoFromText(const std::string& text,
+                                                       const std::string& rangeHint);
+
+    /** parse "301-400" หรือ "1-110" → (lo, hi) — invalid string → {0, 0} */
+    [[nodiscard]] static std::pair<int, int> parsePcRangeBounds(const std::string& rangeHint);
 
     /** Dell service tag = 7 ตัว alphanumeric ตามหลัง "S/N" หรือ "SERVICE TAG" */
     [[nodiscard]] static std::string parseSerialFromText(const std::string& text);
@@ -54,7 +65,7 @@ public:
     /** "..._50.jpg" → 50 */
     [[nodiscard]] static int parsePhotoIndexFromFilename(const std::string& filename);
 
-    /** "pc 1-110" → "1-110" */
+    /** "pc 1-110" หรือ "Laptop 301-400" → "1-110" / "301-400" */
     [[nodiscard]] static std::string parsePcRangeFromFilename(const std::string& filename);
 
 private:

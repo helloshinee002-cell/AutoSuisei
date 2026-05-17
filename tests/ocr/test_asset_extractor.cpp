@@ -108,6 +108,79 @@ TEST(AssetExtractor, AcceptsTwoDigitFromOkGroundTruth) {
     EXPECT_EQ(AssetExtractor::parsePcNoFromText("103"), "103");
 }
 
+// =================== Phase 9.5: range-guided fallback ===================
+// User-verified ground truth ของ Train2 (2026-05-17) แสดงว่า OCR หยิบ
+// "025" / "7" / "62" / "32" จาก screen artifacts ผิดเป็น PC No.
+// ที่จริง PC อยู่ในช่วง 301-400 หรือ 401-500 ตาม filename hint
+// → ถ้ามี range hint ต้องเลือก digit-only line ที่อยู่ใน range ก่อน
+
+TEST(AssetExtractor, ParsesPcRangeBounds_Valid) {
+    auto b = AssetExtractor::parsePcRangeBounds("301-400");
+    EXPECT_EQ(b.first, 301);
+    EXPECT_EQ(b.second, 400);
+}
+
+TEST(AssetExtractor, ParsesPcRangeBounds_WithSpaces) {
+    auto b = AssetExtractor::parsePcRangeBounds("1 - 110");
+    EXPECT_EQ(b.first, 1);
+    EXPECT_EQ(b.second, 110);
+}
+
+TEST(AssetExtractor, ParsesPcRangeBounds_Invalid) {
+    auto b = AssetExtractor::parsePcRangeBounds("");
+    EXPECT_EQ(b.first, 0);
+    EXPECT_EQ(b.second, 0);
+    auto b2 = AssetExtractor::parsePcRangeBounds("foo");
+    EXPECT_EQ(b2.first, 0);
+    EXPECT_EQ(b2.second, 0);
+}
+
+TEST(AssetExtractor, ParsesPcRangeFromFilename_LaptopNNNDashNNN) {
+    EXPECT_EQ(AssetExtractor::parsePcRangeFromFilename(
+                  "LINE_ALBUM_KD Laptop 301-400_260517_5.jpg"),
+              "301-400");
+    EXPECT_EQ(AssetExtractor::parsePcRangeFromFilename(
+                  "LINE_ALBUM_KD Laptop 401-500_260517_130.jpg"),
+              "401-500");
+    // existing "pc 1-110" pattern ต้องยังทำงาน
+    EXPECT_EQ(AssetExtractor::parsePcRangeFromFilename(
+                  "killdisk pc 1-110_260516_50.jpg"),
+              "1-110");
+}
+
+TEST(AssetExtractor, RangeGuided_PrefersInRangeCandidate) {
+    // OCR ของรูปจริง _5.jpg: text มี "7" จาก screen + "317" คือ PC No.
+    // range hint 301-400 → ต้องเลือก 317 ไม่ใช่ 7
+    const std::string ocr = "7\n317\nsome other text";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "317");
+}
+
+TEST(AssetExtractor, RangeGuided_FiltersOutOfRangeFallback) {
+    // เคสจริง _136.jpg: OCR เห็น "025" อยากให้ผลเป็น "347"
+    const std::string ocr = "025\n347\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "347");
+}
+
+TEST(AssetExtractor, RangeGuided_FallsBackToFirstWhenNoneInRange) {
+    // ถ้าไม่มี digit ใน range จริงๆ — ยอมรับ first 2-3 digit ตามเดิม
+    // (อาจ false positive แต่ก็ดีกว่า "" — user reviewable ได้)
+    const std::string ocr = "025\nlol\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "025");
+}
+
+TEST(AssetExtractor, RangeGuided_PrimaryNoNNStillWins) {
+    // ถ้ามี "no.NN" ใน text — primary regex ยังชนะ (ไม่ filter range)
+    // เพราะ "no.NN" pattern แม่นกว่า lone-digit
+    const std::string ocr = "no.50\n317\nbar";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr, "301-400"), "50");
+}
+
+TEST(AssetExtractor, RangeGuided_EmptyHintBehavesLikeOriginal) {
+    // ไม่มี hint → เลือก first 2-3 digit ตาม Phase 9.2 behavior
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("025\n347\nbar", ""), "025");
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("025\n347\nbar"), "025");
+}
+
 // =================== Dell serial / service tag ===================
 
 TEST(AssetExtractor, ParsesSerialAfterSlashNLabel) {

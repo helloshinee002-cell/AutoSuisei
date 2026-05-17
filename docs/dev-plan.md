@@ -255,6 +255,36 @@
 
 ---
 
+## Phase 9.5 — Filename-range-guided PC No. (in_progress, started 2026-05-17)
+
+**Priority pivot**: user feedback "Serial ไม่ต้องเยอะก็ได้ เน้นที่ เลข No." → กลับมา focus PC No. accuracy ไม่ใช่ serial polish
+
+**Context จาก ground_truth.csv (Train2 user-verified, 622/632)**:
+- 8 photos ที่ OCR ได้เลขผิด — patterns:
+  - `_5.jpg`: OCR=7, user=317 (lone-digit ฟลุก "7" จาก screen)
+  - `_136.jpg`: OCR=025, user=347
+  - `_55.jpg`: OCR=62, user=336
+  - `_130.jpg`: OCR=32, user=423
+  - `_153.jpg`: OCR=291, user=479
+  - `_198.jpg`: OCR=10, user=460
+  - `_74.jpg`: OCR=023, user=448
+  - `_189.jpg`: OCR=14, user=338
+- ทุกเคส OCR หยิบ 2-3 digit จาก screen artifacts ไม่ใช่ PC No. จริง
+- filename ทั้งหมดมี hint "Laptop 301-400" หรือ "Laptop 401-500" → ใช้กรองได้
+
+**Implementation**:
+- [x] **9.5.1** เพิ่ม overload `parsePcNoFromText(text, rangeHint)` + helper `parsePcRangeBounds`
+- [x] **9.5.2** Strategy: primary "no.NN" regex ยังชนะเสมอ; lone-digit fallback เลือก in-range ก่อน; ถ้าไม่มีตัวใน range → fall back to first (ไม่ regression)
+- [x] **9.5.3** ขยาย `parsePcRangeFromFilename` รับ "Laptop NNN-NNN" (Train2) นอกจาก "pc NNN-NNN" (batch แรก)
+- [x] **9.5.4** Update `extract()` ส่ง `info.pcRange` เข้า `parsePcNoFromText`
+- [x] **9.5.5** Mirror logic ใน `scripts/bulk_extract.py`
+- [x] **9.5.6** 9 failing tests → pass (101/101 ctest)
+- [ ] **9.5.7** Re-run Train2 v3 → expect 15 corrections → ≤5 misses
+
+**Acceptance**: PC No. mismatch rate < 1% on Train2 (was 2.4% in v2)
+
+---
+
 ## Decisions Log
 | Date | Decision | Reason |
 |---|---|---|

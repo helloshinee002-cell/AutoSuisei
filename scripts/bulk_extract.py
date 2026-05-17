@@ -36,19 +36,41 @@ SERIAL_BLOCKLIST = {
 BATCH_RE = re.compile(r"\((\d+)\)")
 DATE_RE = re.compile(r"_(\d{2})(\d{2})(\d{2})_")
 PHOTO_IDX_RE = re.compile(r"_(\d+)\.(?:jpg|jpeg|png|bmp|tif|tiff|webp)$", re.I)
-PC_RANGE_RE = re.compile(r"pc\s*(\d+\s*-\s*\d+)", re.I)
+PC_RANGE_RE = re.compile(r"(?:pc|laptop)\s*(\d+\s*-\s*\d+)", re.I)
 
 
-def extract_pc_no(text: str) -> str:
+def parse_range_bounds(hint: str) -> tuple[int, int]:
+    """'301-400' → (301, 400). Returns (0, 0) on invalid input."""
+    m = re.match(r"\s*(\d+)\s*-\s*(\d+)\s*$", hint or "")
+    if not m:
+        return (0, 0)
+    return (int(m.group(1)), int(m.group(2)))
+
+
+def extract_pc_no(text: str, range_hint: str = "") -> str:
     m = PC_NO_RE.search(text)
     if m:
         return m.group(1)
-    # fallback: standalone 2-3 digit line
+    # fallback (Phase 9.2 + 9.5): standalone 2-3 digit line, prefer in-range when hint given
+    lo, hi = parse_range_bounds(range_hint)
+    have_range = lo > 0 and hi >= lo
+    first_seen = ""
     for line in text.splitlines():
         lm = PC_NO_STANDALONE_LINE_RE.match(line)
-        if lm:
-            return lm.group(1)
-    return ""
+        if not lm:
+            continue
+        digits = lm.group(1)
+        if not first_seen:
+            first_seen = digits
+        if not have_range:
+            return digits
+        try:
+            n = int(digits)
+            if lo <= n <= hi:
+                return digits
+        except ValueError:
+            continue
+    return first_seen
 
 
 def extract_serial(text: str) -> str:
@@ -129,9 +151,9 @@ def main() -> int:
             mean_conf = sum(confs) / len(confs) if confs else 0.0
             joined = "\n".join(text for (_box, text, _score) in (result or []))
 
-            pc_no = extract_pc_no(joined)
-            serial = extract_serial(joined)
             meta = parse_filename(img.name)
+            pc_no = extract_pc_no(joined, meta["pc_range"])
+            serial = extract_serial(joined)
 
             warnings_list = []
             if not pc_no:

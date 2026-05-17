@@ -45,8 +45,23 @@ bool isBlocklistedSerial(std::string_view candidate) {
 AssetExtractor::AssetExtractor(OcrEngine& engine) : engine_(engine) {}
 
 std::string AssetExtractor::parsePcNoFromText(const std::string& text) {
+    return parsePcNoFromText(text, "");
+}
+
+std::pair<int, int> AssetExtractor::parsePcRangeBounds(const std::string& rangeHint) {
+    static const std::regex re{R"(\s*(\d+)\s*-\s*(\d+)\s*)"};
+    std::smatch m;
+    if (!std::regex_match(rangeHint, m, re)) return {0, 0};
+    try {
+        return {std::stoi(m[1].str()), std::stoi(m[2].str())};
+    } catch (...) {
+        return {0, 0};
+    }
+}
+
+std::string AssetExtractor::parsePcNoFromText(const std::string& text,
+                                              const std::string& rangeHint) {
     // Primary: "no.45", "No 6", "no. 45", "pc no.45", "N°45", "no-18"
-    // → จับเลข 1-4 หลักหลัง "no" + separator
     static const std::regex primary{
         R"((?:^|[^A-Za-z])[Nn][Oo°][\.\-\s:]*([0-9]{1,4})\b)"};
     std::smatch m;
@@ -54,22 +69,30 @@ std::string AssetExtractor::parsePcNoFromText(const std::string& text) {
         return m[1].str();
     }
 
-    // Fallback (Phase 9.2): บรรทัดที่เป็น 2-3 digit ล้วน (sticker / dark Notepad)
-    // - 4 หลักมักเป็นรุ่น/ปี (5290, 2026) — กรองออก
-    // - 1 หลักเป็น noise สูง (0, จุด, ขีด) — กรองออก
-    // - ต้องเป็นทั้งบรรทัด (ห้ามมี '%' / 'x' / ตัวอักษรปน → กัน "52% complete", "0x000")
+    // Fallback (Phase 9.2 + 9.5): บรรทัดที่เป็น 2-3 digit ล้วน
+    // ถ้ามี rangeHint → เลือก candidate ที่อยู่ใน range ก่อน
     static const std::regex standaloneDigit{R"(^\s*([0-9]{2,3})\s*$)"};
+    const auto [lo, hi] = parsePcRangeBounds(rangeHint);
+    const bool haveRange = lo > 0 && hi >= lo;
+
+    std::string firstSeen;
     std::stringstream ss(text);
     std::string line;
     while (std::getline(ss, line)) {
-        // ตัด \r ที่อาจติดมาจาก Windows line endings
         if (!line.empty() && line.back() == '\r') line.pop_back();
         std::smatch lm;
-        if (std::regex_match(line, lm, standaloneDigit)) {
-            return lm[1].str();
+        if (!std::regex_match(line, lm, standaloneDigit)) continue;
+        const auto digits = lm[1].str();
+        if (firstSeen.empty()) firstSeen = digits;
+        if (!haveRange) return digits;  // no hint → take first
+        try {
+            const int n = std::stoi(digits);
+            if (n >= lo && n <= hi) return digits;
+        } catch (...) {
+            // continue
         }
     }
-    return "";
+    return firstSeen;  // ไม่มีตัวใน range → fallback to first 2-3 digit (อาจ false positive)
 }
 
 std::string AssetExtractor::parseSerialFromText(const std::string& text) {
@@ -143,7 +166,9 @@ int AssetExtractor::parsePhotoIndexFromFilename(const std::string& filename) {
 }
 
 std::string AssetExtractor::parsePcRangeFromFilename(const std::string& filename) {
-    static const std::regex re{R"(pc\s*(\d+\s*-\s*\d+))", std::regex_constants::icase};
+    // รองรับทั้ง "pc 1-110" (batch แรก) และ "Laptop 301-400" (Train2)
+    static const std::regex re{R"((?:pc|laptop)\s*(\d+\s*-\s*\d+))",
+                                std::regex_constants::icase};
     std::smatch m;
     const auto name = basenameOf(filename);
     if (std::regex_search(name, m, re)) {
@@ -163,7 +188,7 @@ AssetInfo AssetExtractor::extract(const std::string& imagePath) {
     try {
         const auto ocr = engine_.recognize(imagePath);
         info.ocrConfidence = ocr.confidence;
-        info.pcNo = parsePcNoFromText(ocr.text);
+        info.pcNo = parsePcNoFromText(ocr.text, info.pcRange);
         info.serialNo = parseSerialFromText(ocr.text);
     } catch (const std::exception& e) {
         info.warnings.push_back(std::string{"OCR failed: "} + e.what());
