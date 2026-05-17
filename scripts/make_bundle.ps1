@@ -98,6 +98,17 @@ if (Test-Path "$pyDir\python.exe") {
     # Strip __pycache__ to save space
     Get-ChildItem $pyTarget -Recurse -Force -Filter '__pycache__' -Directory |
         Remove-Item -Recurse -Force
+
+    # Mirror MSVC CRT into python/ — onnxruntime_pybind11_state.pyd
+    # loads via python.exe's loader, which doesn't see DLLs next to
+    # AutoPilot.exe. Without these the DLL init fails with
+    # "A dynamic link library (DLL) initialization routine failed".
+    if ($msvcCrt) {
+        Write-Host '  mirroring MSVC CRT into python/ for Python DLL loader...'
+        Get-ChildItem $msvcCrt -Filter '*.dll' | ForEach-Object {
+            Copy-Item $_.FullName $pyTarget -Force
+        }
+    }
 } else {
     Write-Warning 'embedded-python not built; bundle will require system Python.'
     Write-Warning '  run scripts/setup_embedded_python.ps1 first if you want self-contained.'
