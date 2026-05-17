@@ -9,7 +9,6 @@
       "name": "qtbase",
       "features": ["widgets", "gui"]
     },
-    "qtdeclarative",
     "tesseract",
     "leptonica",
     {

@@ -23,7 +23,7 @@ if(MSVC)
 endif()
 
 # Dependencies (resolved by vcpkg manifest mode)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Gui Qml Quick)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Gui)
 find_package(Tesseract CONFIG REQUIRED)
 find_package(Leptonica CONFIG REQUIRED)
 find_package(OpenCV CONFIG REQUIRED)
