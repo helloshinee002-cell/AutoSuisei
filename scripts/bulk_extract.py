@@ -21,10 +21,18 @@ from pathlib import Path
 PC_NO_RE = re.compile(
     r"(?:^|[^A-Za-z])[Nn][Oo°][\.\-\s:]*([0-9]{1,4})\b"
 )
+# Phase 9.2 fallback: line ที่เป็น 2-3 digit ล้วน (sticker / dark Notepad)
+PC_NO_STANDALONE_LINE_RE = re.compile(r"^\s*([0-9]{2,3})\s*$")
 SERIAL_LABELED_RE = re.compile(
-    r"(?:S\s*[/\\]\s*N|SERVICE\s*TAG)\s*\)?\s*([A-Z0-9]{7})\b"
+    r"(?:S\s*[/\\]?\s*N|SERVICE\s*TAG)\s*\)?\s*[:.]?\s*([A-Z0-9]{7})\b"
 )
 SERIAL_STANDALONE_RE = re.compile(r"\b([A-Z0-9]{7})\b")
+
+# mirror src/ocr/AssetExtractor.cpp Phase 9.1 blocklist
+SERIAL_BLOCKLIST = {
+    "PASS1OF", "DISK0C1", "DRIVE00", "NTFSSIZ",
+    "BOOTXOF", "ELAPSED", "REMOVE0", "FIXED00",
+}
 BATCH_RE = re.compile(r"\((\d+)\)")
 DATE_RE = re.compile(r"_(\d{2})(\d{2})(\d{2})_")
 PHOTO_IDX_RE = re.compile(r"_(\d+)\.(?:jpg|jpeg|png|bmp|tif|tiff|webp)$", re.I)
@@ -33,17 +41,26 @@ PC_RANGE_RE = re.compile(r"pc\s*(\d+\s*-\s*\d+)", re.I)
 
 def extract_pc_no(text: str) -> str:
     m = PC_NO_RE.search(text)
-    return m.group(1) if m else ""
+    if m:
+        return m.group(1)
+    # fallback: standalone 2-3 digit line
+    for line in text.splitlines():
+        lm = PC_NO_STANDALONE_LINE_RE.match(line)
+        if lm:
+            return lm.group(1)
+    return ""
 
 
 def extract_serial(text: str) -> str:
     upper = text.upper()
     m = SERIAL_LABELED_RE.search(upper)
-    if m:
+    if m and m.group(1) not in SERIAL_BLOCKLIST:
         return m.group(1)
     for m in SERIAL_STANDALONE_RE.finditer(upper):
         cand = m.group(1)
-        if any(c.isalpha() for c in cand) and any(c.isdigit() for c in cand):
+        alphas = sum(1 for c in cand if c.isalpha())
+        digits = sum(1 for c in cand if c.isdigit())
+        if alphas >= 3 and digits >= 2 and cand not in SERIAL_BLOCKLIST:
             return cand
     return ""
 

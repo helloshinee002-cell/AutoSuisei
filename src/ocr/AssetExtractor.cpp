@@ -5,6 +5,7 @@
 #include <cctype>
 #include <filesystem>
 #include <regex>
+#include <sstream>
 #include <string_view>
 
 namespace autopilot::ocr {
@@ -44,13 +45,29 @@ bool isBlocklistedSerial(std::string_view candidate) {
 AssetExtractor::AssetExtractor(OcrEngine& engine) : engine_(engine) {}
 
 std::string AssetExtractor::parsePcNoFromText(const std::string& text) {
-    // "no.45", "No 6", "no. 45", "pc no.45", "N°45", "no-18" (OCR may misread . as -)
+    // Primary: "no.45", "No 6", "no. 45", "pc no.45", "N°45", "no-18"
     // → จับเลข 1-4 หลักหลัง "no" + separator
-    static const std::regex re{
+    static const std::regex primary{
         R"((?:^|[^A-Za-z])[Nn][Oo°][\.\-\s:]*([0-9]{1,4})\b)"};
     std::smatch m;
-    if (std::regex_search(text, m, re)) {
+    if (std::regex_search(text, m, primary)) {
         return m[1].str();
+    }
+
+    // Fallback (Phase 9.2): บรรทัดที่เป็น 2-3 digit ล้วน (sticker / dark Notepad)
+    // - 4 หลักมักเป็นรุ่น/ปี (5290, 2026) — กรองออก
+    // - 1 หลักเป็น noise สูง (0, จุด, ขีด) — กรองออก
+    // - ต้องเป็นทั้งบรรทัด (ห้ามมี '%' / 'x' / ตัวอักษรปน → กัน "52% complete", "0x000")
+    static const std::regex standaloneDigit{R"(^\s*([0-9]{2,3})\s*$)"};
+    std::stringstream ss(text);
+    std::string line;
+    while (std::getline(ss, line)) {
+        // ตัด \r ที่อาจติดมาจาก Windows line endings
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        std::smatch lm;
+        if (std::regex_match(line, lm, standaloneDigit)) {
+            return lm[1].str();
+        }
     }
     return "";
 }

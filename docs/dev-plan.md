@@ -163,6 +163,41 @@
 
 ---
 
+## Phase 9.2 — Lone-digit PC No. fallback (in_progress, started 2026-05-17)
+
+**Context**: หลัง Phase 9.1 false-positive fix รัน PaddleOCR sidecar บน 632 ภาพ `Downloads\Train2` พบ:
+- PC No. hit เพียง 49.8% (315/632) — ครึ่งหนึ่งของภาพเป็น sticker photo มีเลขใหญ่ไม่มี "no." prefix
+- Sample miss: `Train2_10.jpg` มี sticker "315" + Dell tag "6YW8RV2" → extractor จับ serial ได้แต่พลาด pc
+
+**Ground truth จาก `Downloads\OK\`** (18 ภาพที่ user label) ระบุ pattern 4 แบบ ที่ "lone-digit" คือเลข 2-3 หลักโดดๆ:
+- Sticker number (45, 48, 49, 93, 103)
+- Dark Notepad fullscreen "22"/"28"/"54"
+- Handwriting green marker บนเทป (36)
+
+**Implementation**:
+- [x] **9.2.1** เพิ่ม 8 failing test ใน `test_asset_extractor.cpp`:
+  - ParsesStandaloneDigitFromStickerOcr (315 ใน multi-line text)
+  - ParsesStandaloneDigitFromDarkNotepad (22, 28, 54)
+  - PrimaryPatternStillWinsOverFallback (กัน regression)
+  - RejectsFourDigitLineAsLoneDigit (5290 model, 2026 year)
+  - RejectsKilldiskProgressPercent ("52% complete")
+  - RejectsHexOffsetAsLoneDigit ("0x00000000")
+  - RejectsZeroAndSingleDigitArtifacts
+  - AcceptsTwoDigitFromOkGroundTruth
+- [x] **9.2.2** Implement `parsePcNoFromText` fallback ที่ split text เป็นบรรทัด แล้ว match `^\s*([0-9]{2,3})\s*$` (ทั้งบรรทัดเป็น 2-3 digit)
+- [x] **9.2.3** Mirror Python regex ใน `scripts/bulk_extract.py`
+- [x] **9.2.4** Verify ctest 73/73 pass (was 65/65)
+- [x] **9.2.5** Validate บน OK ground truth: 17/18 (94.4%) PC No. hit, miss แค่ 36.png (handwriting จาง)
+- [ ] **9.2.6** Re-run Train2 บน v2 → expected PC No. hit 80%+
+
+**Acceptance**:
+1. Primary "no.NN" pattern ยังทำงานเป็น regression test ✓
+2. False positive guards: 4-digit lines, %/x/letters → rejected ✓
+3. OK ground truth: PC No. hit ≥ 90% (achieved 94.4%) ✓
+4. Train2 PC No. hit ≥ 80% (target — pending v2 run)
+
+---
+
 ## Decisions Log
 | Date | Decision | Reason |
 |---|---|---|

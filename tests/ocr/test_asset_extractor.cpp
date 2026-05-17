@@ -54,6 +54,60 @@ TEST(AssetExtractor, ReturnsEmptyWhenNoPcNoPresent) {
     EXPECT_EQ(AssetExtractor::parsePcNoFromText("nothing to see here"), "");
 }
 
+// =================== Phase 9.2: lone-digit fallback ===================
+// ก่อนหน้านี้ AssetExtractor จับ PC No. ได้แค่เมื่อมี "no" prefix (เช่น "pc no.45")
+// Sticker photos แสดงเลขใหญ่ไม่มี prefix (45, 48, 49, 93, 103 ใน Downloads\OK)
+// และ Notepad dark mode (22, 28, 54) ที่ user พิมพ์แค่เลขก็ขาด prefix
+// → ต้อง fallback ดึงเลขจาก line ที่เป็นตัวเลขล้วน 1-3 หลัก
+
+TEST(AssetExtractor, ParsesStandaloneDigitFromStickerOcr) {
+    // เลียนแบบ PaddleOCR output ของภาพ sticker "315" ใน Train2_10.jpg
+    const std::string ocr = "Latitude 5290 2-in-1\n315\nS/N 6YW8RV2\nDell Latitude E5290";
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText(ocr), "315");
+}
+
+TEST(AssetExtractor, ParsesStandaloneDigitFromDarkNotepad) {
+    // ground truth จาก Downloads\OK\22-1.png / 28-1.png / 54-1.png
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("File Edit View\n22"), "22");
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("File Edit View\n28"), "28");
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("File Edit View\n54"), "54");
+}
+
+TEST(AssetExtractor, PrimaryPatternStillWinsOverFallback) {
+    // ห้ามให้ fallback ทับ primary — ถ้ามี "no.NN" ต้องเอา NN ของ primary
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("999\npc no.45\n111"), "45");
+}
+
+TEST(AssetExtractor, RejectsFourDigitLineAsLoneDigit) {
+    // 4 หลักมักเป็นรุ่น (Latitude 5290), ปี (2026), หรือเลข version — ไม่ใช่ PC No.
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("Latitude\n5290\n2-in-1"), "");
+}
+
+TEST(AssetExtractor, RejectsKilldiskProgressPercent) {
+    // "52% complete" — PaddleOCR อาจแยก "52" เป็น line เดียว แต่บรรทัดเดิมต้องมี "%"
+    // เคสจริง: ทั้งบรรทัดเป็น "52% complete" → ไม่ match standalone digit
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("Erasing\n52% complete\n00:40:52 elapsed"), "");
+}
+
+TEST(AssetExtractor, RejectsHexOffsetAsLoneDigit) {
+    // "0x00000000" ไม่ใช่ pure digit (มี 'x') — ไม่ match
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("One Pass\n0x00000000"), "");
+}
+
+TEST(AssetExtractor, RejectsZeroAndSingleDigitArtifacts) {
+    // เลข 0 เดี่ยว มักเป็น OCR noise (จุดหรือสัญลักษณ์)
+    // single digit เป็นไปได้แต่ noise สูง — ผ่อนผันที่ 1-3 หลัก (ไม่กรอง single digit)
+    // เคสนี้: "0" เดี่ยวไม่ควรเป็น PC No.
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("foo bar\n0\nbaz"), "");
+}
+
+TEST(AssetExtractor, AcceptsTwoDigitFromOkGroundTruth) {
+    // OK folder: 10, 14, 16, 22, 28, 29, 36, 45, 48, 49, 51, 54, 57, 93, 95
+    // ทุกเลขในนี้ 2-3 หลัก
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("45"), "45");
+    EXPECT_EQ(AssetExtractor::parsePcNoFromText("103"), "103");
+}
+
 // =================== Dell serial / service tag ===================
 
 TEST(AssetExtractor, ParsesSerialAfterSlashNLabel) {
