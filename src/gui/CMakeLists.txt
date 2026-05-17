@@ -14,6 +14,7 @@ qt_add_executable(AutoPilot
     ReviewTab.cpp
     WatchTab.h
     WatchTab.cpp
+    AutoPilot.rc
 )
 
 target_link_libraries(AutoPilot PRIVATE

@@ -36,6 +36,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
+SetupIconFile=AutoPilot.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]
@@ -58,19 +59,5 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; \
     Flags: nowait postinstall skipifsilent
 
-[Code]
-function InitializeSetup(): Boolean;
-begin
-  Result := True;
-  // Soft warning: Python 3.10+ + rapidocr-onnxruntime ต้องลงเอง
-  // ไม่ block install — แค่บอกผู้ใช้
-  if MsgBox(
-       'AutoPilot ต้องการ Python 3.10+ และ rapidocr-onnxruntime สำหรับการประมวลผล OCR' + #13#10 +
-       'ถ้ายังไม่ได้ติดตั้ง ให้ทำหลังจาก install เสร็จ:' + #13#10 + #13#10 +
-       '  1. ติดตั้ง Python จาก https://www.python.org/downloads/' + #13#10 +
-       '  2. เปิด PowerShell แล้วรัน:' + #13#10 +
-       '     pip install rapidocr-onnxruntime onnxruntime' + #13#10 + #13#10 +
-       'ดำเนินการต่อ?',
-       mbConfirmation, MB_YESNO) = IDNO then
-    Result := False;
-end;
+; (no InitializeSetup needed — Python + rapidocr-onnxruntime bundled
+;  inside python/ subfolder, ready to use immediately after install)

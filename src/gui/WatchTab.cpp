@@ -47,6 +47,13 @@ QString scriptsDir() {
     return QDir(QCoreApplication::applicationDirPath()).filePath("scripts");
 }
 
+QString pythonExe() {
+    const QString bundled = QDir(QCoreApplication::applicationDirPath())
+                                .filePath("python/python.exe");
+    if (QFileInfo::exists(bundled)) return bundled;
+    return QStringLiteral("python");
+}
+
 }  // namespace
 
 WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
@@ -143,10 +150,11 @@ void WatchTab::startWorker() {
             });
 
     statusLabel_->setText("กำลังโหลด PaddleOCR (1-2 วินาที)…");
-    worker_->start("python", {script});
+    worker_->start(pythonExe(), {script});
     if (!worker_->waitForStarted(5000)) {
         QMessageBox::critical(this, "Python not found",
-                              "ไม่สามารถ start python ได้ — เช็คว่ามี python ใน PATH");
+                              "ไม่สามารถ start python ได้ — เช็คว่ามี python ใน PATH "
+                              "หรือ bundle ที่ <exeDir>/python/python.exe");
         delete worker_;
         worker_ = nullptr;
         return;

@@ -59,6 +59,15 @@ QString scriptsDir() {
     return QDir(QCoreApplication::applicationDirPath()).filePath("scripts");
 }
 
+/** Python executable: prefer bundled `<exeDir>/python/python.exe`,
+ *  fallback to system `python` ใน PATH */
+QString pythonExe() {
+    const QString bundled = QDir(QCoreApplication::applicationDirPath())
+                                .filePath("python/python.exe");
+    if (QFileInfo::exists(bundled)) return bundled;
+    return QStringLiteral("python");
+}
+
 }  // namespace
 
 OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
@@ -213,11 +222,12 @@ void OcrTab::processFolder(const QString& folder) {
     }
 
     status_->setText("กำลังโหลด PaddleOCR…");
-    bulkProcess_->start("python", {script, folder,
-                                    QString::fromStdString(tmpCsv),
-                                    "--progress-json"});
+    bulkProcess_->start(pythonExe(), {script, folder,
+                                       QString::fromStdString(tmpCsv),
+                                       "--progress-json"});
     if (!bulkProcess_->waitForStarted(5000)) {
-        status_->setText("ไม่สามารถ start python ได้ — เช็คว่ามี python ใน PATH");
+        status_->setText("ไม่สามารถ start python ได้ — เช็คว่ามี python ใน PATH "
+                         "หรือ bundle ที่ <exeDir>/python/python.exe");
         bulkBtn_->setEnabled(true);
         browseBtn_->setEnabled(true);
     }
