@@ -114,5 +114,28 @@ docs/          dev-plan.md (phase-by-phase log)
 - Phase 9.5 stable: **98.4%** PC No. accuracy บน Train2 (632 ภาพ vs user ground truth)
 - Phase 11: Watch folder live extract เสร็จ
 - Release build: `build/windows-x64-release/src/gui/AutoPilot.exe` (459 KB)
-- Git tag: `v0.9.0-stable` @ `e5c1f73`
+- **Installer (เสร็จ)**: `C:\Users\hello\Backups\AutoPilot\AutoPilot-Setup-0.9.0.exe` (108 MB, self-contained — มี Python + rapidocr + MSVC CRT bundled)
+- Git tag: `v0.9.0-stable`
 - ดู `docs/dev-plan.md` สำหรับประวัติ phase-by-phase
+- **ดู `docs/tomorrow.md`** สำหรับงานค้าง session ถัดไป (rename → AutoSuisei + Monitor/Accessory tabs)
+
+## Session 2026-05-17 summary
+
+Started PC No. accuracy: ~50% / Ended: **98.4%** บน 632 ภาพ Train2
+
+Phases done this session:
+- 9.1 false-positive blocklist (commit `cb6e852`)
+- 9.2 lone-digit fallback (commit `42d811c`)
+- 9.3 Manual Review UI (commit `c48fec0`) — user verified 622/632 ground truth
+- 9.4 serial dedup (commit `e631f18`)
+- 9.5 range-guided extraction (commits `4ce1f25`, `5df5cca`) → 98.4%
+- 9.6/9.7/9.8 GUI overhaul (commit `e5c1f73`) — QProcess pipeline, ลบ 3 tabs, Rename feature
+- 11 Watch folder live extract (commit `70184a5`)
+- Release build + Inno Setup installer + embedded Python + Suisei icon + MSVC CRT bundling
+  (commits `252b2e5`, `405808d`, `28cded3`, `687e048`, `03c12b9`, `2cac371`)
+
+Key learnings:
+- Tesseract 7.8% PC No. hit → PaddleOCR (rapidocr-onnxruntime) 97.9% — use Python sidecar via QProcess
+- Range hint from filename ("Laptop 301-400") + iterate primary matches → +4.6 pp
+- DLL bundling for installer: vcpkg DLLs ✓ + Qt plugins ✓ + MSVC CRT next to exe AND
+  ในโฟลเดอร์ python/ ด้วย (Python loader ค้นโฟลเดอร์ของ python.exe ไม่ใช่ของ main exe)
