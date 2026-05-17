@@ -229,6 +229,32 @@
 
 ---
 
+## Phase 9.4 — Serial deduplication via majority voting (in_progress, started 2026-05-17)
+
+**Context**: User verified 622/632 (98.4%) of Train2 ผ่าน Phase 9.3 Review UI → `build/ground_truth.csv` แต่ serial column ยังไม่ได้ touch เพราะ user ปล่อย OCR reading ไว้ ทำให้ PC ที่ถ่ายหลายภาพมี serial หลายแบบจาก OCR misread:
+- PC 303: `21GG1F3 / C7WS9M2 / C7WS9N2` — M/N confusion ในรูป
+- PC 308: `614ZFL2 / 6L4ZFL2 / COL7210 / GC624F3` — 1/L confusion + false positives
+
+**Algorithm**: edit-distance ≤1 clustering + count-weighted vote
+1. กลุ่ม serial readings ของ PC เดียวกันที่ต่างกัน ≤1 ตัวอักษร (same length, single-char substitution)
+2. Score per cluster = (count desc, total_confidence desc)
+3. Winning cluster → canonical = highest confidence reading inside
+4. Rejected serials เก็บใน column แยกเพื่อ audit
+
+### Sub-tasks
+- [x] **9.4.1** Implement `scripts/dedupe_serials.py` + inline `--self-test` (PC 303 case + edge cases)
+- [x] **9.4.2** Run บน `build/ground_truth.csv` → `build/pc_inventory_final.csv`
+- [x] **9.4.3** Validate: PC 303 → C7WS9N2 (correct cluster), PC 308 → 6L4ZFL2 (correct cluster), false positives `21GG1F3`, `COL7210`, `GC624F3` rejected
+- [x] **9.4.4** User correction stats จาก ground_truth.csv: 15/622 (2.4%) PC# corrected, 0 serial corrected → auto extraction มี real accuracy ~97.6%
+
+### Result
+- Total unique PCs: 205 (จาก 212 ก่อน dedup เพราะ user's PC# corrections รวบ PC ซ้ำ)
+- 51.2% (105/205) ของ PC มี multiple serial variants ที่ต้อง dedup
+- 189/205 PCs (92%) มี canonical serial
+- `build/pc_inventory_final.csv` พร้อมใช้ตอนนี้
+
+---
+
 ## Decisions Log
 | Date | Decision | Reason |
 |---|---|---|
