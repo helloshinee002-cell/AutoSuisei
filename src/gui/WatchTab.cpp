@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -38,8 +39,12 @@ bool looksLikeImage(const QString& path) {
 }
 
 QString scriptsDir() {
-    auto env = qEnvironmentVariable("AUTOPILOT_SCRIPTS_DIR");
-    return env.isEmpty() ? QStringLiteral(AUTOPILOT_SCRIPTS_DIR) : env;
+    // mirror OcrTab::scriptsDir() — env → baked → exeDir/scripts fallback
+    auto fromEnv = qEnvironmentVariable("AUTOPILOT_SCRIPTS_DIR");
+    if (!fromEnv.isEmpty() && QDir(fromEnv).exists()) return fromEnv;
+    const auto baked = QStringLiteral(AUTOPILOT_SCRIPTS_DIR);
+    if (!baked.isEmpty() && QDir(baked).exists()) return baked;
+    return QDir(QCoreApplication::applicationDirPath()).filePath("scripts");
 }
 
 }  // namespace

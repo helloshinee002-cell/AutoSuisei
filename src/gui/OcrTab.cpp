@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -48,9 +49,14 @@ bool looksLikeImage(const QString& path) {
 }
 
 QString scriptsDir() {
+    // 1. env var (override สำหรับ user ที่ติดตั้ง scripts/ ที่อื่น)
     auto fromEnv = qEnvironmentVariable("AUTOPILOT_SCRIPTS_DIR");
-    if (!fromEnv.isEmpty()) return fromEnv;
-    return QStringLiteral(AUTOPILOT_SCRIPTS_DIR);
+    if (!fromEnv.isEmpty() && QDir(fromEnv).exists()) return fromEnv;
+    // 2. baked-in source path (สำหรับ dev build) — ถ้ามีจริง
+    const auto baked = QStringLiteral(AUTOPILOT_SCRIPTS_DIR);
+    if (!baked.isEmpty() && QDir(baked).exists()) return baked;
+    // 3. fallback: <exeDir>/scripts/ (สำหรับ bundled exe)
+    return QDir(QCoreApplication::applicationDirPath()).filePath("scripts");
 }
 
 }  // namespace
