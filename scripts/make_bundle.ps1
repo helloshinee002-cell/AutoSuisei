@@ -60,6 +60,27 @@ Get-ChildItem $vcpkgBin -Filter '*.dll' | ForEach-Object {
     Copy-Item $_.FullName $bundle
 }
 
+# 2b. MSVC C++ runtime DLLs (app-local deployment)
+# Target machines without Visual C++ Redistributable get error
+# 0xc0000142 ("application unable to start") because they can't find
+# vcruntime140.dll / msvcp140.dll. Shipping these next to the exe
+# (app-local) is the supported MS deployment path that doesn't require
+# admin to install the redist system-wide.
+$msvcCrt = Get-ChildItem -Path 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Redist\MSVC' `
+    -Recurse -Filter 'vcruntime140.dll' -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -match '\\x64\\' -and
+                   $_.FullName -notmatch 'onecore' -and
+                   $_.FullName -notmatch 'spectre' } |
+    Select-Object -First 1 -ExpandProperty DirectoryName
+if ($msvcCrt) {
+    Write-Host "  copying MSVC CRT from $msvcCrt..."
+    Get-ChildItem $msvcCrt -Filter '*.dll' | ForEach-Object {
+        Copy-Item $_.FullName $bundle -Force
+    }
+} else {
+    Write-Warning 'MSVC v143 CRT not found — bundle may fail on machines without VC++ Redist'
+}
+
 # 3. Python sidecar scripts
 Write-Host '  copying scripts/...'
 $scriptsTarget = Join-Path $bundle 'scripts'
