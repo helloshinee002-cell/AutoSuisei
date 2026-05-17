@@ -31,6 +31,10 @@ Thumbs.db
 .DS_Store
 desktop.ini
 
+# Python
+__pycache__/
+*.pyc
+
 # Qt
 moc_*.cpp
 qrc_*.cpp

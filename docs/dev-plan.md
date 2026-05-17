@@ -355,6 +355,32 @@ Phase 9.5 done. Future Phase 10 (image preprocessing) or Phase 11 (fine-tune det
 
 ---
 
+## Phase 11 — Watch folder + auto-extract (done 2026-05-17)
+
+**Context**: ภาพ PC sync เข้ามาจาก LINE/มือถือเรื่อยๆ → live processing ลด
+เวลารอ + กดน้อย กว่าการรวบรอบสุดท้ายแล้ว Bulk Extract
+
+### Architecture
+- `scripts/ocr_worker.py` — long-running PaddleOCR worker
+  - Loads model 1 ครั้ง → emits `{"event":"ready"}`
+  - Reads filepath บรรทัดละ 1 ทาง stdin → emit JSON result ทาง stdout
+  - "QUIT" หรือ EOF → exit
+  - Re-uses regex helpers (`extract_pc_no`, `extract_serial`, `parse_filename`)
+    จาก `bulk_extract.py` — single source of truth ของ parser logic
+- `src/gui/WatchTab.h/.cpp` — 3rd Qt tab
+  - `QFileSystemWatcher` + 700ms debounce → scanForNew()
+  - Snapshot ไฟล์เดิมตอน Choose folder → ข้ามภาพเก่า เฉพาะภาพใหม่ที่มา
+  - Queue + serial dispatch (1 ภาพต่อครั้ง) — กัน worker overload
+  - Table update live + Send to Review (reuse pipeline เดียวกับ OCR tab)
+- MainWindow: เพิ่ม Watch ระหว่าง OCR กับ Review + เชื่อม
+  sendToReviewRequested → loadFromExtraction ตัวเดียวกัน
+
+### Acceptance
+- Smoke test ocr_worker.py สำเร็จ: input 1 path → output JSON ที่มี pc_no=317 ✓
+- AutoPilot.exe build OK + tab Watch โผล่ + Start/Stop ใช้ได้
+
+---
+
 ## Decisions Log
 | Date | Decision | Reason |
 |---|---|---|

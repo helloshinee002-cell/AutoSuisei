@@ -4,6 +4,7 @@
 
 #include "OcrTab.h"
 #include "ReviewTab.h"
+#include "WatchTab.h"
 #include "player/IPlayer.h"
 #include "recorder/IRecorder.h"
 #include "storage/IMacroRepository.h"
@@ -26,18 +27,22 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
 
     auto* tabs = new QTabWidget(this);
     auto* ocrTab = new OcrTab(*ocrRepo_);
+    auto* watchTab = new WatchTab();
     auto* reviewTab = new ReviewTab();
     tabs->addTab(ocrTab, "OCR");
+    tabs->addTab(watchTab, "Watch");
     const int reviewIdx = tabs->addTab(reviewTab, "Review");
     setCentralWidget(tabs);
 
-    // OCR bulk extract → Review tab พร้อม preview ภาพทันที ไม่ต้อง save/load CSV
-    connect(ocrTab, &OcrTab::sendToReviewRequested, this,
-            [tabs, reviewTab, reviewIdx](const std::vector<ocr::AssetInfo>& infos,
-                                          const QString& folder) {
-                reviewTab->loadFromExtraction(infos, folder);
-                tabs->setCurrentIndex(reviewIdx);
-            });
+    // OCR bulk extract / Watch → Review tab พร้อม preview ภาพทันที
+    auto toReview = [tabs, reviewTab, reviewIdx](
+                        const std::vector<ocr::AssetInfo>& infos,
+                        const QString& folder) {
+        reviewTab->loadFromExtraction(infos, folder);
+        tabs->setCurrentIndex(reviewIdx);
+    };
+    connect(ocrTab, &OcrTab::sendToReviewRequested, this, toReview);
+    connect(watchTab, &WatchTab::sendToReviewRequested, this, toReview);
 }
 
 MainWindow::~MainWindow() {
