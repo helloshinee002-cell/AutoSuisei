@@ -5,6 +5,8 @@ add_library(autopilot_ocr STATIC
     OcrFormatter.cpp
     AssetExtractor.h
     AssetExtractor.cpp
+    ReviewModel.h
+    ReviewModel.cpp
 )
 
 target_include_directories(autopilot_ocr PUBLIC ${CMAKE_SOURCE_DIR}/src)

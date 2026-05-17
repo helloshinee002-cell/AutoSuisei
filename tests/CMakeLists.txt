@@ -6,6 +6,7 @@ set(AUTOPILOT_TEST_SOURCES
     ocr/test_ocr_engine.cpp
     ocr/test_ocr_formatter.cpp
     ocr/test_asset_extractor.cpp
+    ocr/test_review_model.cpp
     core/test_action.cpp
     storage/test_macro_serializer.cpp
     storage/test_macro_repository.cpp

@@ -196,6 +196,37 @@
 3. OK ground truth: PC No. hit ≥ 90% (achieved 94.4%) ✓
 4. Train2 PC No. hit ≥ 80% (target — pending v2 run)
 
+**Train2 v2 result (post-9.2)**: 619/632 (97.9%) PC No. hit — เพิ่มจาก 49.8% baseline เป็น 97.9% (+48 pp) — เกิน target อย่างชัดเจน
+
+---
+
+## Phase 9.3 — Manual Review UI (in_progress, started 2026-05-17)
+
+**Context**: หลัง Phase 9.2 ยังเหลือ ~13 false positives ใน Train2 (PC #7/10/14/023/025/32/62/291) + miss 13 ภาพที่ไม่ได้ค่า ต้องการ tool ให้ user คลิก review + correct เพื่อ build ground truth dataset สำหรับ Phase 10 (ML training)
+
+**Architecture decision**: แยก data layer (`autopilot_ocr::ReviewModel` — pure C++, testable via GTest) ออกจาก Qt UI (`autopilot::gui::ReviewTab`) ตาม CLAUDE.md module boundary
+
+### Sub-tasks
+- [x] **9.3.1** Design + write 19 failing test ใน `tests/ocr/test_review_model.cpp` ครอบคลุม:
+  - CSV escape/parse (special chars, quoted fields, embedded commas/quotes)
+  - Load จาก bulk_extract.py format (filename/pc_no/serial_no minimum)
+  - Edit row preserves `originalPcNo`/`originalSerialNo`
+  - Save → reload preserves all fields
+  - `nextUnverified` skipping + return nullopt when all done
+  - Resume from previously-saved CSV with verified+notes columns
+- [x] **9.3.2** Implement `ReviewModel` (header `ReviewModel.h`, impl `ReviewModel.cpp`) — pure C++
+- [x] **9.3.3** Wire `autopilot_ocr` lib + tests/CMakeLists.txt (19/19 ReviewModel tests pass)
+- [x] **9.3.4** Implement `ReviewTab` Qt widget — left QTableWidget + right preview/edit form + Save button
+- [x] **9.3.5** เพิ่ม "Review" เป็น tab ที่ 5 ใน MainWindow
+- [x] **9.3.6** Build AutoPilot.exe + ctest 92/92 pass
+- [ ] **9.3.7** Manual smoke test (user) — เปิด exe + load `build/train2_paddle_v2.csv` + folder `Downloads\Train2` + review + save → ตรวจ ground_truth.csv ออกถูก format
+
+### Acceptance
+1. ReviewModel ผ่าน 19 unit tests ✓
+2. ไม่ regression — ctest 92/92 (was 73/73 + 19 new) ✓
+3. AutoPilot.exe build สำเร็จ + มี tab Review โผล่ขึ้นมา (need user smoke test)
+4. CSV roundtrip: load → edit → save → reload ค่าเดิม + verified state ติดมา ✓ (covered by SaveAndReload_PreservesAllFields)
+
 ---
 
 ## Decisions Log

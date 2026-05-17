@@ -10,6 +10,8 @@ qt_add_executable(AutoPilot
     WebTab.cpp
     ImageTab.h
     ImageTab.cpp
+    ReviewTab.h
+    ReviewTab.cpp
 )
 
 target_link_libraries(AutoPilot PRIVATE

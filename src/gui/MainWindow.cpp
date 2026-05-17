@@ -5,6 +5,7 @@
 #include "ImageTab.h"
 #include "MacrosTab.h"
 #include "OcrTab.h"
+#include "ReviewTab.h"
 #include "WebTab.h"
 #include "player/IPlayer.h"
 #include "recorder/IRecorder.h"
@@ -31,6 +32,7 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
     tabs->addTab(new OcrTab(*ocrRepo_), "OCR");
     tabs->addTab(new WebTab(*macroRepo_), "Web");
     tabs->addTab(new ImageTab(), "Image Click");
+    tabs->addTab(new ReviewTab(), "Review");
     setCentralWidget(tabs);
 }
 
