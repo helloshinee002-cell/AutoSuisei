@@ -48,6 +48,33 @@ User instructions (จาก session 2026-05-17):
 
 User จะใส่ภาพไว้ก่อนเริ่ม session
 
+## 4. Serial extraction รายหมวด — สำคัญ
+
+**สถานะปัจจุบัน** (PC&Laptop): regex หา `SERVICE TAG (S/N) XXXXXXX` หรือ `S/N XXXXXXX`
+ลงท้ายด้วย 7-char alphanumeric (Dell pattern + ≥3 alpha + ≥2 digit)
+
+**Monitor — label เป็น "S/N" เท่านั้น** (ไม่มี "Service Tag")
+- ปัจจุบัน `parseSerialFromText` รองรับ "S/N" + "SN:" อยู่แล้ว — น่าจะ work
+- แต่ Dell-specific blocklist (PASS1OF/DISK0C1/...) + 7-char threshold อาจ
+  ไม่เหมาะกับ format ของ Monitor S/N (อาจยาว/สั้นกว่า 7 ตัว, อาจมี dash, etc.)
+- **ดูภาพตัวอย่างก่อนปรับ** — อาจต้องเขียน `parseMonitorSerial` แยก
+
+**Accessory — 2 รูปแบบ**:
+- **(a) มี "S/N"** → parser คล้าย Monitor
+- **(b) แค่ barcode (ไม่มี S/N text)** → ต้องอ่าน **ตัวเลขใต้บาโค้ด**
+  - บาโค้ดมาตรฐาน (Code128/EAN/UPC) ใต้แท่งจะมีตัวเลข human-readable
+  - PaddleOCR น่าจะเห็นตัวเลขนี้ได้ปกติ (ตัวพิมพ์ใหญ่ไม่มีอะไรพิเศษ)
+  - **เขียน fallback**: ถ้าไม่เจอ "S/N" → หาบรรทัดที่เป็นเลขล้วน 8-15 หลัก
+    (บาโค้ด consumer มักเป็น 8/12/13 หลัก; industrial บางตัว 14+)
+  - ระวัง false positive จาก timestamp ในภาพ EXIF / IMEI / etc.
+  - ดี-ไซน์ idea: collect ทุก `^\s*\d{8,15}\s*$` line → คืนตัวที่ยาวที่สุด
+    หรือมี confidence สูงสุด
+
+**Architecture suggestion**: เพิ่ม `enum Category { PCLaptop, Monitor, Accessory }` →
+parser per category → `AssetExtractor::extractFor(Category, image)` แทน 1 parser ทั่วไป
+- แต่ละ category เรียก PaddleOCR ตัวเดียวกัน แต่ post-process regex ต่างกัน
+- Python sidecar (`bulk_extract.py`) เพิ่ม `--category=monitor|accessory|pc` flag
+
 ---
 
 ## Suggested order (tomorrow)
