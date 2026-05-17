@@ -132,6 +132,37 @@
 
 ---
 
+## Phase 9.1 — AssetExtractor false-positive cleanup (in_progress, started 2026-05-17)
+
+**Context**: หลังจาก Phase 9 PaddleOCR baseline บน 232 ภาพแรก พบ false positive 2 ประเภทที่ทำให้ pc_inventory เปื้อน:
+- `PASS1OF` — มาจาก killdisk "One Pass 1 of 1" UI text ที่ผ่าน standalone-alphanum-7 fallback
+- `DISK0C1` — มาจาก disk label "Disk 0 C1" ที่ผ่าน fallback เช่นกัน
+
+**OK folder ground truth** (`Downloads\OK` 18 ภาพ) เปิดดูแล้วพบ category extraction 4 แบบ:
+1. Notepad ดำ + lone digits (22, 28, 54) — ปัจจุบัน parser **ไม่จับ** เพราะไม่มี "no" prefix
+2. Notepad ขาว + "pc no.NN" — จับได้
+3. Notepad + "pc no.NN" + "SN:XXXXXXX" + status — จับ pc+serial ได้
+4. Sticker / handwriting บนเครื่อง — Dell tag visible (e.g. 7VSP9M2, 6JXXFL2)
+
+**Scope Phase 9.1** (focused, ~30 นาที):
+- [ ] **9.1.1** เขียน failing test: `parseSerialFromText("Erasing One Pass 1 of 1 PhysicalDrive0") == ""` (blocklist PASS1OF)
+- [ ] **9.1.2** เขียน failing test: `parseSerialFromText("Disk 0 C1 boot...") == ""` (blocklist DISK0C1)
+- [ ] **9.1.3** เขียน failing test: Dell tag fallback ต้อง require min 2 digits + min 3 alphas → reject "PASSWORD" (7 char all alpha), reject "ABCDEF1" (1 digit)
+- [ ] **9.1.4** Implement: เพิ่ม blocklist set + tighten alphanum threshold ใน fallback
+- [ ] **9.1.5** Verify: 60/60 ctest pass + เพิ่ม 3 test ใหม่ → 63/63
+
+**Acceptance**:
+1. Tests ที่มีอยู่ทั้งหมดยังผ่าน (no regression)
+2. False positive blocklist ทดสอบ explicit
+3. Re-run `scripts\bulk_extract.py` บน 232 ภาพเดิม → PASS1OF/DISK0C1 หายไป
+
+**Out of scope** (จะแยก phase):
+- "Lone digit" PC No. extraction (Notepad dark case 22/28/54) — Phase 9.2
+- Manual review UI — Phase 9.3
+- Training pipeline บน Train2 — Phase 10
+
+---
+
 ## Decisions Log
 | Date | Decision | Reason |
 |---|---|---|

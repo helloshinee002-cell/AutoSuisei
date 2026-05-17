@@ -1,9 +1,11 @@
 #include "AssetExtractor.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <filesystem>
 #include <regex>
+#include <string_view>
 
 namespace autopilot::ocr {
 
@@ -17,6 +19,24 @@ std::string toUpper(std::string s) {
 
 std::string basenameOf(const std::string& path) {
     return std::filesystem::u8path(path).filename().string();
+}
+
+// killdisk / Windows UI artifacts ที่เคยหลุดผ่าน standalone-alphanum-7 fallback
+// เป็น Dell serial — รายการนี้เติมจาก false positives ที่พบใน 232 ภาพ baseline
+constexpr std::array<std::string_view, 8> kSerialBlocklist{{
+    "PASS1OF",   // "One Pass 1 Of 1" killdisk progress
+    "DISK0C1",   // "Disk 0 C1" boot label
+    "DRIVE00",   // "PhysicalDrive 0 0" fragment
+    "NTFSSIZ",   // "NTFS Size" header
+    "BOOTXOF",   // "Boot X of" placeholder
+    "ELAPSED",   // 7-char status word
+    "REMOVE0",   // "Removable 0" disk header
+    "FIXED00",   // "Fixed 0 0" disk header
+}};
+
+bool isBlocklistedSerial(std::string_view candidate) {
+    return std::find(kSerialBlocklist.begin(), kSerialBlocklist.end(), candidate) !=
+           kSerialBlocklist.end();
 }
 
 }  // namespace
@@ -37,25 +57,32 @@ std::string AssetExtractor::parsePcNoFromText(const std::string& text) {
 
 std::string AssetExtractor::parseSerialFromText(const std::string& text) {
     // Dell service tag = 7 chars alphanumeric ติดกัน
-    // มัก label "S/N XXXXXXX" หรือ "(S/N) XXXXXXX"
+    // label มีหลายรูป: "S/N XXXXXXX", "(S/N) XXXXXXX", "SN:XXXXXXX", "SERVICE TAG XXXXXXX"
     static const std::regex labeled{
-        R"((?:S\s*[/\\]\s*N|SERVICE\s*TAG)\s*\)?\s*([A-Z0-9]{7})\b)"};
+        R"((?:S\s*[/\\]?\s*N|SERVICE\s*TAG)\s*\)?\s*[:.]?\s*([A-Z0-9]{7})\b)"};
     const auto upper = toUpper(text);
     std::smatch m;
     if (std::regex_search(upper, m, labeled)) {
-        return m[1].str();
+        const auto candidate = m[1].str();
+        if (!isBlocklistedSerial(candidate)) {
+            return candidate;
+        }
     }
 
     // fallback: standalone 7-char block ที่มีทั้งตัวอักษร+ตัวเลข (กัน false-positive จากเลข)
+    // ใน OK ground truth ทุก Dell tag มี digit >= 2 และ alpha >= 3 → ใช้เป็น threshold
+    // กัน UI artifact 1-digit เช่น "PASS1OF"/"NTFSSIZ" และ digit-heavy เช่น "12345AB"
     static const std::regex standalone{R"(\b([A-Z0-9]{7})\b)"};
     auto it = std::sregex_iterator(upper.begin(), upper.end(), standalone);
     for (; it != std::sregex_iterator(); ++it) {
         const auto candidate = (*it)[1].str();
-        const bool hasAlpha = std::any_of(candidate.begin(), candidate.end(),
-                                          [](char c) { return std::isalpha(static_cast<unsigned char>(c)); });
-        const bool hasDigit = std::any_of(candidate.begin(), candidate.end(),
-                                          [](char c) { return std::isdigit(static_cast<unsigned char>(c)); });
-        if (hasAlpha && hasDigit) {
+        const int alphas = static_cast<int>(std::count_if(
+            candidate.begin(), candidate.end(),
+            [](char c) { return std::isalpha(static_cast<unsigned char>(c)); }));
+        const int digits = static_cast<int>(std::count_if(
+            candidate.begin(), candidate.end(),
+            [](char c) { return std::isdigit(static_cast<unsigned char>(c)); }));
+        if (alphas >= 3 && digits >= 2 && !isBlocklistedSerial(candidate)) {
             return candidate;
         }
     }

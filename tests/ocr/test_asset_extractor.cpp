@@ -74,3 +74,40 @@ TEST(AssetExtractor, RejectsAllDigit7CharBlock) {
     // ต้องไม่ match "1234567" เพราะ Dell tag ต้องมีตัวอักษรปน
     EXPECT_EQ(AssetExtractor::parseSerialFromText("plain 1234567 digits"), "");
 }
+
+// =================== false-positive blocklist (Phase 9.1) ===================
+// killdisk UI text เคยถูกจับเป็น Dell serial ผิด — ภาพ baseline จาก Train
+// แสดง "Erasing PhysicalDrive0 One Pass 1 of 1" + "Disk 0 C1 boot"
+// ทำให้ standalone-alphanum-7 fallback ดึง "PASS1OF" และ "DISK0C1" ออกมา
+
+TEST(AssetExtractor, RejectsKilldiskPassNOfArtifact) {
+    EXPECT_EQ(AssetExtractor::parseSerialFromText(
+                  "Erasing PhysicalDrive0 One Pass 1 of 1 (0x00000000)"),
+              "");
+}
+
+TEST(AssetExtractor, RejectsKilldiskDiskLabelArtifact) {
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("Disk 0 C1 boot NTFS"), "");
+}
+
+TEST(AssetExtractor, RequiresMinTwoDigitsInStandaloneFallback) {
+    // Real Dell tags มี digit อย่างน้อย 2 ตัวเสมอ ("8N6QQ02"=3, "7VSP9M2"=2, "6JXXFL2"=2)
+    // 1-digit candidates มักเป็น English words ที่ OCR สลับตัวเลข
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("ABCDEF1 floating"), "");
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("PASS1OF junk"), "");
+}
+
+TEST(AssetExtractor, RequiresMinThreeAlphasInStandaloneFallback) {
+    // กัน "1234ABC"-style ที่ digit เกินครึ่งและไม่ใช่ pattern Dell
+    // (Dell tags จริงมี alpha >= 3 เสมอ จาก sample: 8N6QQ02=4, 7VSP9M2=4, 37GFH32=3)
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("12345AB random"), "");
+}
+
+TEST(AssetExtractor, StillAcceptsRealDellTagsFromOkFolder) {
+    // ground truth จาก Downloads\OK\ — sticker photos
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("SERVICE TAG (S/N) 7VSP9M2"), "7VSP9M2");
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("SERVICE TAG (S/N) 6JXXFL2"), "6JXXFL2");
+    // SN:XXXXXXX จาก Notepad screen (113-1.png / 120-1.png)
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("SN:7DBWSF2"), "7DBWSF2");
+    EXPECT_EQ(AssetExtractor::parseSerialFromText("SN:37GFH32"), "37GFH32");
+}
