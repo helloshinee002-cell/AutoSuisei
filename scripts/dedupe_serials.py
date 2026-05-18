@@ -145,7 +145,7 @@ def main() -> int:
     total_pcs = len(by_pc)
     with_serial = sum(1 for items in by_pc.values()
                       if any(s for s, _, _ in items))
-    print(f"Photos missing PC No.: {missing_pc}")
+    print(f"Photos missing No.: {missing_pc}")
     print(f"Unique PCs: {total_pcs}")
     print(f"PCs with >=1 serial reading: {with_serial}")
     print(f"Output: {out_path}")

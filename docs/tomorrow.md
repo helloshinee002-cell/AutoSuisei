@@ -53,11 +53,15 @@ User จะใส่ภาพไว้ก่อนเริ่ม session
 **สถานะปัจจุบัน** (PC&Laptop): regex หา `SERVICE TAG (S/N) XXXXXXX` หรือ `S/N XXXXXXX`
 ลงท้ายด้วย 7-char alphanumeric (Dell pattern + ≥3 alpha + ≥2 digit)
 
-**Monitor — label เป็น "S/N" เท่านั้น** (ไม่มี "Service Tag")
-- ปัจจุบัน `parseSerialFromText` รองรับ "S/N" + "SN:" อยู่แล้ว — น่าจะ work
-- แต่ Dell-specific blocklist (PASS1OF/DISK0C1/...) + 7-char threshold อาจ
-  ไม่เหมาะกับ format ของ Monitor S/N (อาจยาว/สั้นกว่า 7 ตัว, อาจมี dash, etc.)
-- **ดูภาพตัวอย่างก่อนปรับ** — อาจต้องเขียน `parseMonitorSerial` แยก
+**Monitor — ใช้ S/N เท่านั้น (ห้ามใช้ Service Tag 7-char)**
+- ภาพ Dell monitor มี **ทั้ง** "Service Tag: XXXXXXX" (7-char) และ "S/N: CN-XXXXX-XXXXX-XXX-XXXX-A00" (Dell CN format ยาว)
+- **ต้องใช้ S/N ตัวเต็ม** เช่น `CN-07C2R4-72872-2BD-A8MM`, `CN-0JF27G-FCC00-76M-AKNB-A00`
+- **ห้าม** fall back ไปใช้ Service Tag 7-char (ผู้ใช้ระบุชัดเจน 2026-05-18)
+- Parser ปัจจุบันรองรับ 7-char Dell Service Tag เป็น primary → ต้องเขียน
+  `parseMonitorSerial` แยก: หา pattern `CN-[A-Z0-9]+-[A-Z0-9]+-...-A00`
+  หลัง label "S/N" (ตัวที่ 2 ใน 2 ตัว — Service Tag มาก่อน S/N เสมอ)
+- Dell-specific blocklist (PASS1OF/DISK0C1/...) ไม่จำเป็นในตัว Monitor parser
+  เพราะ CN- pattern เฉพาะเจาะจงพอ
 
 **Accessory — 2 รูปแบบ**:
 - **(a) มี "S/N"** → parser คล้าย Monitor

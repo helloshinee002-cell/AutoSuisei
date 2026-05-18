@@ -209,7 +209,7 @@ AssetInfo AssetExtractor::extract(const std::string& imagePath) {
         return info;
     }
 
-    if (info.pcNo.empty()) info.warnings.push_back("PC No. not found");
+    if (info.pcNo.empty()) info.warnings.push_back("No. not found");
     if (info.serialNo.empty()) info.warnings.push_back("Serial not found");
     return info;
 }

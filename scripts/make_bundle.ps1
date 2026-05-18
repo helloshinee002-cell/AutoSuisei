@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Assemble a portable AutoPilot bundle from the release build.
+    Assemble a portable AutoSuisei bundle from the release build.
 
 .DESCRIPTION
-    Copies the release AutoPilot.exe along with all required runtime DLLs,
+    Copies the release AutoSuisei.exe along with all required runtime DLLs,
     Qt plugins, and Python sidecar scripts into a single self-contained
     folder, then zips it. The resulting zip is what gets shipped to
-    end users (extract anywhere, double-click AutoPilot.exe to run).
+    end users (extract anywhere, double-click AutoSuisei.exe to run).
 
     Python itself is NOT bundled — the user still needs Python 3.10+ on
     PATH plus `pip install rapidocr-onnxruntime onnxruntime`. We can't
@@ -14,13 +14,13 @@
 
 .PARAMETER OutDir
     Where to assemble the bundle directory and zip. Defaults to
-    C:\Users\hello\Backups\AutoPilot.
+    C:\Users\hello\Backups\AutoSuisei.
 
 .EXAMPLE
     .\scripts\make_bundle.ps1
 #>
 param(
-    [string]$OutDir = 'C:\Users\hello\Backups\AutoPilot'
+    [string]$OutDir = 'C:\Users\hello\Backups\AutoSuisei'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,8 +29,8 @@ $root = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $root 'build\windows-x64-release\src\gui'
 $vcpkgBin   = Join-Path $root 'build\windows-x64-release\vcpkg_installed\x64-windows\bin'
 
-if (-not (Test-Path $releaseDir\AutoPilot.exe)) {
-    throw "Release exe not found at $releaseDir. Build first:`n  cmake --build --preset windows-x64-release --target AutoPilot"
+if (-not (Test-Path $releaseDir\AutoSuisei.exe)) {
+    throw "Release exe not found at $releaseDir. Build first:`n  cmake --build --preset windows-x64-release --target AutoSuisei"
 }
 if (-not (Test-Path $vcpkgBin)) {
     throw "Release vcpkg bin not found at $vcpkgBin"
@@ -39,7 +39,7 @@ if (-not (Test-Path $vcpkgBin)) {
 if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir | Out-Null }
 
 $stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
-$bundle    = Join-Path $OutDir "AutoPilot-portable-$stamp"
+$bundle    = Join-Path $OutDir "AutoSuisei-portable-$stamp"
 $zipTarget = "$bundle.zip"
 if (Test-Path $bundle) { Remove-Item -Recurse -Force $bundle }
 New-Item -ItemType Directory -Path $bundle | Out-Null
@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Path $bundle | Out-Null
 Write-Host "Assembling bundle in $bundle"
 
 # 1. main exe + Qt plugins (already deployed next to release exe by post-build)
-Copy-Item "$releaseDir\AutoPilot.exe" $bundle
+Copy-Item "$releaseDir\AutoSuisei.exe" $bundle
 foreach ($sub in @('platforms', 'styles', 'imageformats')) {
     if (Test-Path "$releaseDir\$sub") {
         Copy-Item -Recurse "$releaseDir\$sub" $bundle
@@ -101,7 +101,7 @@ if (Test-Path "$pyDir\python.exe") {
 
     # Mirror MSVC CRT into python/ — onnxruntime_pybind11_state.pyd
     # loads via python.exe's loader, which doesn't see DLLs next to
-    # AutoPilot.exe. Without these the DLL init fails with
+    # AutoSuisei.exe. Without these the DLL init fails with
     # "A dynamic link library (DLL) initialization routine failed".
     if ($msvcCrt) {
         Write-Host '  mirroring MSVC CRT into python/ for Python DLL loader...'
@@ -116,21 +116,21 @@ if (Test-Path "$pyDir\python.exe") {
 
 # 4. README for the bundle recipient
 $readme = @'
-AutoPilot — Portable Bundle
+AutoSuisei — Portable Bundle
 ============================
 
-PC Inventory OCR — ดึง PC No. + Dell serial จากภาพถ่ายมือถือ
+Inventory OCR — ดึง No. + Dell serial จากภาพถ่ายมือถือ
 
 วิธีใช้:
   1. คลายไฟล์ zip นี้ไว้ตรงไหนก็ได้บนเครื่อง
-  2. ดับเบิ้ลคลิก AutoPilot.exe
+  2. ดับเบิ้ลคลิก AutoSuisei.exe
 
 (self-contained — Python + รายการ deps อยู่ใน python/ พร้อมใช้ทันที)
 
 3 แท็บ:
   OCR    — Bulk Extract ภาพในโฟลเดอร์ทั้งหมดทีเดียว
   Watch  — เฝ้าโฟลเดอร์ ภาพใหม่มา → auto-extract ทันที
-  Review — ตรวจ/แก้ผล + Rename ไฟล์เป็น PC No.
+  Review — ตรวจ/แก้ผล + Rename ไฟล์เป็น No.
 
 ดูประวัติเวอร์ชั่นที่ docs/dev-plan.md ใน source repo
 '@

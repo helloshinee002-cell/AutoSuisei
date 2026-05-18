@@ -1,6 +1,6 @@
-// Windows resource file — embeds the AutoPilot icon in AutoPilot.exe
+// Windows resource file — embeds the AutoSuisei icon in AutoSuisei.exe
 // so the taskbar / Alt-Tab / Explorer show the suisei icon.
 //
 // The ID "IDI_APP_ICON" doesn't need to be a numeric ID — Windows uses
 // the FIRST icon in the resource table for the exe's shell icon.
-IDI_APP_ICON ICON "../../installer/AutoPilot.ico"
+IDI_APP_ICON ICON "../../installer/AutoSuisei.ico"

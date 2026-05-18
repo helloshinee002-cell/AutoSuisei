@@ -1,4 +1,4 @@
-# AutoPilot
+# AutoSuisei
 
 **Windows Automation Suite** — Macro Recorder + Web Recorder + OCR ในตัวเดียว เขียนด้วย C++20
 
@@ -31,7 +31,7 @@ cmake --build --preset windows-x64-debug
 ctest --preset windows-x64-debug --output-on-failure
 
 # 4. รัน GUI
-.\build\windows-x64-debug\src\gui\AutoPilot.exe
+.\build\windows-x64-debug\src\gui\AutoSuisei.exe
 
 # 5. OCR ผ่าน CLI
 .\build\windows-x64-debug\src\cli\autopilot_cli.exe ocr "C:\path\to\image.png"

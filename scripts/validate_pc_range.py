@@ -46,7 +46,7 @@ def main() -> int:
                 out_range_vals[pc] += 1
 
     print(f"Total: {total}")
-    print(f"PC No. in [{lo},{hi}]: {in_range}/{total} ({100*in_range/total:.1f}%)")
+    print(f"No. in [{lo},{hi}]: {in_range}/{total} ({100*in_range/total:.1f}%)")
     print(f"Empty: {empty}/{total}")
     print(f"Out of range / non-numeric: {sum(out_range_vals.values())}/{total}")
     if out_range_vals:

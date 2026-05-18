@@ -3,7 +3,13 @@
 Bulk-run PaddleOCR + asset extraction on a folder of images.
 
 Usage:
-    python bulk_extract.py <folder> <output.csv>
+    python bulk_extract.py <folder> <output.csv> [--progress-json]
+                                                  [--category=pc|monitor|accessory]
+
+Categories:
+    pc        (default) Dell Service Tag 7-char parser (PC&Laptop)
+    monitor   Dell S/N full format `CN-XXXXX-XXXXX-XXX-XXXX(-A00)?` (Dell monitor)
+    accessory Flexible — S/N label, numeric-with-dashes, or 8-15 digit line
 
 Outputs CSV with columns:
     photo_index,filename,pc_no,serial_no,batch_id,photo_date,pc_range,
@@ -17,27 +23,59 @@ import time
 from pathlib import Path
 
 
-# ---------- regex (mirror src/ocr/AssetExtractor.cpp) ----------
+# ---------- common regex (mirror src/ocr/AssetExtractor.cpp) ----------
 
 PC_NO_RE = re.compile(
     r"(?:^|[^A-Za-z])[Nn][Oo°][\.\-\s:]*([0-9]{1,4})\b"
 )
-# Phase 9.2 fallback: line ที่เป็น 2-3 digit ล้วน (sticker / dark Notepad)
 PC_NO_STANDALONE_LINE_RE = re.compile(r"^\s*([0-9]{2,3})\s*$")
-SERIAL_LABELED_RE = re.compile(
-    r"(?:S\s*[/\\]?\s*N|SERVICE\s*TAG)\s*\)?\s*[:.]?\s*([A-Z0-9]{7})\b"
-)
-SERIAL_STANDALONE_RE = re.compile(r"\b([A-Z0-9]{7})\b")
 
-# mirror src/ocr/AssetExtractor.cpp Phase 9.1 blocklist
-SERIAL_BLOCKLIST = {
-    "PASS1OF", "DISK0C1", "DRIVE00", "NTFSSIZ",
-    "BOOTXOF", "ELAPSED", "REMOVE0", "FIXED00",
-}
 BATCH_RE = re.compile(r"\((\d+)\)")
 DATE_RE = re.compile(r"_(\d{2})(\d{2})(\d{2})_")
 PHOTO_IDX_RE = re.compile(r"_(\d+)\.(?:jpg|jpeg|png|bmp|tif|tiff|webp)$", re.I)
 PC_RANGE_RE = re.compile(r"(?:pc|laptop)\s*(\d+\s*-\s*\d+)", re.I)
+
+# ---------- PC&Laptop serial (Dell Service Tag 7-char) ----------
+
+SERIAL_LABELED_RE = re.compile(
+    r"(?:S\s*[/\\]?\s*N|SERVICE\s*TAG)\s*\)?\s*[:.]?\s*([A-Z0-9]{7})\b"
+)
+SERIAL_STANDALONE_RE = re.compile(r"\b([A-Z0-9]{7})\b")
+SERIAL_BLOCKLIST = {
+    "PASS1OF", "DISK0C1", "DRIVE00", "NTFSSIZ",
+    "BOOTXOF", "ELAPSED", "REMOVE0", "FIXED00",
+}
+
+# ---------- Monitor serial (Dell S/N full format CN-...-A00) ----------
+# Format ที่เจอ:  CN-07C2R4-72872-2BD-A8MM  /  CN-0JF27G-FCC00-76M-AKNB-A00
+# 5-6 hyphenated alphanumeric segments. The 1st segment is always "CN".
+# Some photos are truncated (last segment cut off) → allow 3-5 segments
+# after CN. Each segment 2-7 chars (limits accidental matches against
+# long barcodes like CBA1000…086117).
+MONITOR_SERIAL_RE = re.compile(
+    r"\b(CN-[A-Z0-9]{4,7}-[A-Z0-9]{3,6}-[A-Z0-9]{2,5}"
+    r"(?:-[A-Z0-9]{2,5})?(?:-[A-Z0-9]{2,4})?)\b",
+)
+# Krungsri asset barcode pattern — these lines interleave with the CN serial
+# in OCR output and break naive `-\n` collapse. Strip them before parsing.
+CBA_ASSET_BARCODE_LINE_RE = re.compile(r"^\s*CBA[0-9]+\s*$", re.MULTILINE)
+# Express SVC code / phone numbers — 7+ pure-digit lines that interleave with
+# the CN serial and corrupt the `-\n` collapse (e.g. "4211505398" between
+# CN-03F27G- and CHAB-A00). Strip in monitor parser only.
+NUMERIC_NOISE_LINE_RE = re.compile(r"^\s*\d{7,}\s*$", re.MULTILINE)
+
+# ---------- Accessory serial (flexible) ----------
+# 1) "S/N:" label + value (alphanumeric, dashes allowed, 5-20 chars)
+ACCESSORY_LABELED_RE = re.compile(
+    r"(?:S\s*[/\\]?\s*N|SERIAL(?:\s*NUMBER)?)"
+    r"\s*\)?\s*[:.]?\s*([A-Z0-9][A-Z0-9\-]{4,19}[A-Z0-9])\b",
+    re.IGNORECASE,
+)
+# 2) Numeric line with optional dashes — fallback when no label is present
+#    (e.g. "20210202" stamped on card, or "261-535-477" Verifone style)
+ACCESSORY_NUMERIC_LINE_RE = re.compile(r"^\s*(\d[\d\-]{6,18}\d)\s*$", re.MULTILINE)
+# Skip krungsri-asset barcode (CBA1000…) — that's the bank's asset tag, not device serial
+ACCESSORY_ASSET_BARCODE_RE = re.compile(r"\bCBA[0-9]{10,}\b")
 
 
 def parse_range_bounds(hint: str) -> tuple[int, int]:
@@ -81,13 +119,13 @@ def extract_pc_no(text: str, range_hint: str = "") -> str:
         if in_range(digits):
             return digits
 
-    # No in-range — prefer primary over lone-digit
     if first_primary:
         return first_primary
     return first_lone
 
 
-def extract_serial(text: str) -> str:
+def extract_serial_pc(text: str) -> str:
+    """PC&Laptop: Dell Service Tag 7-char."""
     upper = text.upper()
     m = SERIAL_LABELED_RE.search(upper)
     if m and m.group(1) not in SERIAL_BLOCKLIST:
@@ -99,6 +137,112 @@ def extract_serial(text: str) -> str:
         if alphas >= 3 and digits >= 2 and cand not in SERIAL_BLOCKLIST:
             return cand
     return ""
+
+
+# Match a line that starts a CN serial (one or more segments, optional trailing hyphen).
+# Each segment 2-7 chars to avoid swallowing barcodes / express-SVC codes.
+_CN_LINE_RE = re.compile(r"^CN-[A-Z0-9]{2,7}(?:-[A-Z0-9]{2,7})*-?$")
+# Continuation lines: 1-3 segments of 2-7 chars each. Rejecting 8+ digit blocks
+# avoids merging "Express SVC code" (e.g. 4211505398) into the serial.
+_CN_CONT_RE = re.compile(r"^[A-Z0-9]{2,7}(?:-[A-Z0-9]{2,7}){0,3}-?$")
+
+
+def _merge_cn_fragments(text: str) -> str:
+    """Merge consecutive lines that look like CN-serial fragments.
+
+    OCR sometimes emits the serial pieces as separate lines without
+    trailing hyphens — e.g.
+        CN-0MMK39
+        72872-59P-
+        CU1U-A00
+    This walker rejoins them with '-' into 'CN-0MMK39-72872-59P-CU1U-A00'.
+    """
+    lines = text.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if _CN_LINE_RE.match(stripped):
+            merged = [stripped.rstrip("-")]
+            i += 1
+            while i < len(lines):
+                nxt = lines[i].strip()
+                if _CN_CONT_RE.match(nxt) and not nxt.startswith("CBA"):
+                    merged.append(nxt.rstrip("-"))
+                    i += 1
+                else:
+                    break
+            out.append("-".join(merged))
+        else:
+            out.append(lines[i])
+            i += 1
+    return "\n".join(out)
+
+
+def extract_serial_monitor(text: str) -> str:
+    """Monitor: full Dell S/N format CN-XXXXX-XXXXX-XXX-XXXX(-A00)?
+
+    Never falls back to the 7-char Service Tag — that is intentional
+    (user requirement 2026-05-18). Pre-processing:
+        1. Strip krungsri asset-barcode lines (CBA1000…) that interleave
+           with the CN serial in OCR output.
+        2. Collapse `-\n` so CN segments span line breaks.
+        3. Merge consecutive `[A-Z0-9-]+` lines that follow a `CN-` line
+           (OCR sometimes drops the trailing hyphen).
+    Tolerates truncated photos (3 segments after CN minimum).
+    """
+    upper = text.upper()
+    stripped = CBA_ASSET_BARCODE_LINE_RE.sub("", upper)
+    stripped = NUMERIC_NOISE_LINE_RE.sub("", stripped)
+    collapsed = re.sub(r"-\s*\n\s*", "-", stripped)
+    merged = _merge_cn_fragments(collapsed)
+    m = MONITOR_SERIAL_RE.search(merged)
+    if m:
+        return m.group(1)
+    return ""
+
+
+def extract_serial_accessory(text: str) -> str:
+    """Accessory: flexible parser.
+
+    Tries in order:
+        1. "S/N:" / "Serial:" label + value
+        2. Numeric-with-dashes line (e.g. "261-535-477")
+        3. Standalone 8-15 digit line (e.g. stamped "20210202")
+    Skips the krungsri asset barcode CBA1000... (that's the bank's asset
+    tag — every photo has it — not the device serial).
+    """
+    # 1) labeled
+    m = ACCESSORY_LABELED_RE.search(text)
+    if m:
+        cand = m.group(1).upper()
+        # ห้ามเป็น asset barcode
+        if not ACCESSORY_ASSET_BARCODE_RE.match(cand):
+            return cand
+
+    # 2/3) numeric line — pick the longest non-asset-barcode candidate
+    candidates: list[str] = []
+    for m in ACCESSORY_NUMERIC_LINE_RE.finditer(text):
+        cand = m.group(1)
+        # Skip asset barcode (CBA prefix is letters so the numeric-only
+        # regex won't match it directly, but a partial digit chunk might —
+        # filter explicitly to be safe).
+        if ACCESSORY_ASSET_BARCODE_RE.search(cand):
+            continue
+        candidates.append(cand)
+    if candidates:
+        # Prefer the longest; on tie, prefer with dashes (Verifone-style)
+        candidates.sort(key=lambda s: (len(s), "-" in s), reverse=True)
+        return candidates[0]
+    return ""
+
+
+def extract_serial(text: str, category: str) -> str:
+    if category == "monitor":
+        return extract_serial_monitor(text)
+    if category == "accessory":
+        return extract_serial_accessory(text)
+    return extract_serial_pc(text)
 
 
 def parse_filename(name: str) -> dict:
@@ -121,13 +265,85 @@ def looks_like_image(p: Path) -> bool:
     return p.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
 
+def ocr_with_rotation(engine, img_path: Path, category: str) -> tuple[str, float, int]:
+    """OCR with rotation fallback for sideways/upside-down photos.
+
+    Tries 0° first. If extraction fails (no serial for monitor/accessory,
+    or no PC No. anywhere), retries 90°/270°/180° and picks the best result
+    (serial-found > pc-no-found > highest mean confidence).
+
+    Returns (joined_text, mean_confidence, line_count).
+    """
+    import cv2
+
+    def _score(text: str) -> tuple[int, int, float]:
+        """(has_serial, has_pc_no, mean_conf) — higher wins."""
+        has_sn = 1 if extract_serial(text, category) else 0
+        has_pc = 1 if extract_pc_no(text) else 0
+        return (has_sn, has_pc, 0.0)  # mean_conf filled below
+
+    def _run(img_arr_or_path) -> tuple[str, float, int]:
+        result, _ = engine(img_arr_or_path)
+        text = "\n".join(t for (_b, t, _s) in (result or []))
+        confs = [float(s) for (_b, _t, s) in (result or [])]
+        mc = sum(confs) / len(confs) if confs else 0.0
+        return text, mc, len(result or [])
+
+    # 0° first
+    text0, mc0, lc0 = _run(str(img_path))
+    s0 = (*_score(text0)[:2], mc0)
+    # If both PC No. and serial found, no rotation needed
+    if s0[0] == 1 and s0[1] == 1:
+        return text0, mc0, lc0
+
+    # Try rotations only if something is missing
+    img_arr = cv2.imread(str(img_path))
+    if img_arr is None:
+        return text0, mc0, lc0
+
+    best_text, best_mc, best_lc = text0, mc0, lc0
+    best_score = s0
+    rotations = [
+        (90, cv2.ROTATE_90_CLOCKWISE),
+        (270, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        (180, cv2.ROTATE_180),
+    ]
+    for _angle, code in rotations:
+        rotated = cv2.rotate(img_arr, code)
+        text, mc, lc = _run(rotated)
+        score = (*_score(text)[:2], mc)
+        if score > best_score:
+            best_text, best_mc, best_lc, best_score = text, mc, lc, score
+            # Early exit if we found both PC No. and serial
+            if score[0] == 1 and score[1] == 1:
+                break
+    return best_text, best_mc, best_lc
+
+
+def parse_args() -> tuple[list[str], set[str], str]:
+    positional: list[str] = []
+    flags: set[str] = set()
+    category = "pc"
+    for a in sys.argv[1:]:
+        if a.startswith("--category="):
+            category = a.split("=", 1)[1].lower()
+        elif a.startswith("--"):
+            flags.add(a)
+        else:
+            positional.append(a)
+    if category not in {"pc", "monitor", "accessory"}:
+        print(f"unknown --category={category}; falling back to 'pc'", file=sys.stderr)
+        category = "pc"
+    return positional, flags, category
+
+
 def main() -> int:
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    flags = {a for a in sys.argv[1:] if a.startswith("--")}
-    progress_json = "--progress-json" in flags  # ส่ง 1 JSON line ต่อภาพ ออก stdout
+    args, flags, category = parse_args()
+    progress_json = "--progress-json" in flags
 
     if len(args) < 2:
-        print("usage: bulk_extract.py <folder> <out.csv> [--progress-json]",
+        print("usage: bulk_extract.py <folder> <out.csv> [--progress-json] "
+              "[--category=pc|monitor|accessory]",
               file=sys.stderr)
         return 1
 
@@ -144,9 +360,11 @@ def main() -> int:
         return 2
 
     images = sorted([p for p in folder.iterdir() if p.is_file() and looks_like_image(p)])
-    print(f"Found {len(images)} images. Loading PaddleOCR…", file=sys.stderr)
+    print(f"Found {len(images)} images. Category={category}. Loading PaddleOCR…",
+          file=sys.stderr)
     if progress_json:
-        print(json.dumps({"event": "start", "total": len(images)}), flush=True)
+        print(json.dumps({"event": "start", "total": len(images),
+                          "category": category}), flush=True)
     t0 = time.time()
     engine = RapidOCR()
     print(f"Model loaded in {time.time()-t0:.1f}s. Processing…", file=sys.stderr)
@@ -166,7 +384,7 @@ def main() -> int:
         t1 = time.time()
         for i, img in enumerate(images, 1):
             try:
-                result, _ = engine(str(img))
+                joined, mean_conf, line_count = ocr_with_rotation(engine, img, category)
             except Exception as e:  # noqa: BLE001
                 writer.writerow([0, img.name, "", "", "", "", "", 0, 0, f"OCR error: {e}"])
                 if progress_json:
@@ -177,17 +395,13 @@ def main() -> int:
                     }), flush=True)
                 continue
 
-            confs = [float(score) for (_box, _text, score) in (result or [])]
-            mean_conf = sum(confs) / len(confs) if confs else 0.0
-            joined = "\n".join(text for (_box, text, _score) in (result or []))
-
             meta = parse_filename(img.name)
             pc_no = extract_pc_no(joined, meta["pc_range"])
-            serial = extract_serial(joined)
+            serial = extract_serial(joined, category)
 
             warnings_list = []
             if not pc_no:
-                warnings_list.append("PC No. not found")
+                warnings_list.append("No. not found")
             if not serial:
                 warnings_list.append("Serial not found")
 
@@ -199,7 +413,7 @@ def main() -> int:
             writer.writerow([
                 meta["photo_index"], img.name, pc_no, serial,
                 meta["batch_id"], meta["photo_date"], meta["pc_range"],
-                f"{mean_conf:.3f}", len(confs), "; ".join(warnings_list),
+                f"{mean_conf:.3f}", line_count, "; ".join(warnings_list),
             ])
 
             if progress_json:
@@ -223,7 +437,7 @@ def main() -> int:
                 elapsed = time.time() - t1
                 rate = i / elapsed if elapsed > 0 else 0
                 eta = (len(images) - i) / rate if rate > 0 else 0
-                print(f"  [{i}/{len(images)}] PC#={with_pc} Serial={with_sn} "
+                print(f"  [{i}/{len(images)}] No#={with_pc} Serial={with_sn} "
                       f"rate={rate:.2f}/s ETA={eta:.0f}s",
                       file=sys.stderr)
 
@@ -237,11 +451,12 @@ def main() -> int:
             "with_pc": with_pc,
             "with_sn": with_sn,
             "elapsed_sec": elapsed,
+            "category": category,
         }), flush=True)
-    print(f"\n=== Summary ===", file=sys.stderr)
+    print(f"\n=== Summary (category={category}) ===", file=sys.stderr)
     print(f"Total: {len(images)} photos in {elapsed:.1f}s "
           f"({elapsed/len(images):.1f}s/photo)", file=sys.stderr)
-    print(f"PC No. hit:  {with_pc:3d}/{len(images)} ({pc_rate:.1f}%)", file=sys.stderr)
+    print(f"No. hit:  {with_pc:3d}/{len(images)} ({pc_rate:.1f}%)", file=sys.stderr)
     print(f"Serial hit:  {with_sn:3d}/{len(images)} ({sn_rate:.1f}%)", file=sys.stderr)
     print(f"CSV: {out_csv}", file=sys.stderr)
     return 0

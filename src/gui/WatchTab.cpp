@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -28,7 +29,7 @@ namespace autopilot::gui {
 
 namespace {
 
-constexpr int kCols = 5;
+constexpr int kCols = 6;
 
 bool looksLikeImage(const QString& path) {
     static const QStringList exts = {
@@ -39,7 +40,6 @@ bool looksLikeImage(const QString& path) {
 }
 
 QString scriptsDir() {
-    // mirror OcrTab::scriptsDir() — env → baked → exeDir/scripts fallback
     auto fromEnv = qEnvironmentVariable("AUTOPILOT_SCRIPTS_DIR");
     if (!fromEnv.isEmpty() && QDir(fromEnv).exists()) return fromEnv;
     const auto baked = QStringLiteral(AUTOPILOT_SCRIPTS_DIR);
@@ -54,37 +54,95 @@ QString pythonExe() {
     return QStringLiteral("python");
 }
 
+/** Helper — สร้าง KPI card 1 ใบ (label เล็กด้านบน + value ใหญ่ด้านล่าง) */
+QFrame* makeKpiCard(const QString& labelText, QLabel*& valueLabel,
+                     const QString& valueObjectName = "kpiValue") {
+    auto* card = new QFrame();
+    card->setObjectName("kpiCard");
+    auto* lay = new QVBoxLayout(card);
+    lay->setContentsMargins(14, 10, 14, 10);
+    lay->setSpacing(4);
+    auto* lbl = new QLabel(labelText);
+    lbl->setObjectName("kpiLabel");
+    valueLabel = new QLabel("0");
+    valueLabel->setObjectName(valueObjectName);
+    lay->addWidget(lbl);
+    lay->addWidget(valueLabel);
+    return card;
+}
+
 }  // namespace
 
 WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
     auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(24, 20, 24, 16);
+    root->setSpacing(12);
 
+    // ----- Header -----
+    auto* title = new QLabel("Folder Watch");
+    title->setObjectName("tabTitle");
+    auto* subtitle = new QLabel("Auto-process new files in watched folder");
+    subtitle->setObjectName("tabSubtitle");
+    root->addWidget(title);
+    root->addWidget(subtitle);
+
+    // ----- Top button row -----
     auto* topRow = new QHBoxLayout();
+    topRow->setSpacing(10);
     chooseBtn_ = new QPushButton("Choose folder…");
     watchBtn_ = new QPushButton("Start watching");
+    watchBtn_->setObjectName("primaryButton");
     watchBtn_->setEnabled(false);
     clearBtn_ = new QPushButton("Clear");
-    sendBtn_ = new QPushButton("Send to Review →");
+    sendBtn_ = new QPushButton("Send to Review");
     sendBtn_->setEnabled(false);
     topRow->addWidget(chooseBtn_);
     topRow->addWidget(watchBtn_);
     topRow->addStretch();
-    topRow->addWidget(clearBtn_);
     topRow->addWidget(sendBtn_);
+    topRow->addWidget(clearBtn_);
     root->addLayout(topRow);
 
-    folderLabel_ = new QLabel("Folder: (none)");
-    root->addWidget(folderLabel_);
+    // ----- Folder + LIVE indicator row -----
+    auto* folderRow = new QHBoxLayout();
+    folderRow->setSpacing(8);
+    auto* folderLbl = new QLabel("Watching folder:");
+    folderLbl->setObjectName("dimLabel");
+    folderLabel_ = new QLabel("(none)");
+    folderRow->addWidget(folderLbl);
+    folderRow->addWidget(folderLabel_, 1);
+    liveLabel_ = new QLabel("● Idle");
+    liveLabel_->setStyleSheet("color: #6B7B78; font-size: 12px;");
+    folderRow->addWidget(liveLabel_);
+    root->addLayout(folderRow);
 
+    // ----- KPI cards row -----
+    auto* kpiRow = new QHBoxLayout();
+    kpiRow->setSpacing(12);
+    kpiRow->addWidget(makeKpiCard("Total", kpiTotal_, "kpiValue"));
+    kpiRow->addWidget(makeKpiCard("Today", kpiToday_, "kpiValue"));
+    kpiRow->addWidget(makeKpiCard("Avg conf.", kpiAvgConf_, "kpiValueAccent"));
+    kpiRow->addWidget(makeKpiCard("Pending rev.", kpiPending_, "kpiValueDanger"));
+    root->addLayout(kpiRow);
+
+    // ----- Table -----
     table_ = new QTableWidget(0, kCols, this);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "PC No.", "Serial", "Confidence"});
+        {"#", "File", "No.", "Serial", "Confidence", "Date"});
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_->setAlternatingRowColors(true);
+    table_->verticalHeader()->setVisible(false);
+    table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table_->setColumnWidth(0, 50);
+    table_->setColumnWidth(2, 110);
+    table_->setColumnWidth(3, 220);
+    table_->setColumnWidth(4, 100);
+    table_->setColumnWidth(5, 100);
     root->addWidget(table_, 1);
 
-    statusLabel_ = new QLabel("Idle");
-    root->addWidget(statusLabel_);
+    setStatus("Idle");
+    refreshKpis();
 
     connect(chooseBtn_, &QPushButton::clicked, this, &WatchTab::onChooseFolder);
     connect(watchBtn_, &QPushButton::clicked, this, &WatchTab::onToggleWatch);
@@ -98,24 +156,49 @@ WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
 
 WatchTab::~WatchTab() { stopWorker(); }
 
+void WatchTab::setStatus(const QString& text) {
+    statusText_ = text;
+    emit statusChanged(text);
+}
+
+void WatchTab::refreshKpis() {
+    if (kpiTotal_) kpiTotal_->setText(QString::number(results_.size()));
+
+    // "Today" = entries with photoDate == today (YYYY-MM-DD)
+    const QString today = QDate::currentDate().toString("yyyy-MM-dd");
+    int todayCount = 0;
+    double confSum = 0.0;
+    int confCount = 0;
+    int pending = 0;
+    for (const auto& r : results_) {
+        if (QString::fromStdString(r.photoDate) == today) ++todayCount;
+        if (r.ocrConfidence > 0.0f) { confSum += r.ocrConfidence; ++confCount; }
+        if (r.pcNo.empty() || r.serialNo.empty()) ++pending;
+    }
+    if (kpiToday_) kpiToday_->setText(QString::number(todayCount));
+    if (kpiAvgConf_) {
+        const double pct = confCount ? 100.0 * confSum / confCount : 0.0;
+        kpiAvgConf_->setText(confCount ? QString::number(pct, 'f', 1) + "%" : "—");
+    }
+    if (kpiPending_) kpiPending_->setText(QString::number(pending));
+}
+
 void WatchTab::onChooseFolder() {
     const auto path = QFileDialog::getExistingDirectory(
         this, "Choose folder to watch", folder_);
     if (path.isEmpty()) return;
     if (watching_) stopWorker();
     folder_ = path;
-    folderLabel_->setText("Folder: " + path);
+    folderLabel_->setText(path);
     watchBtn_->setEnabled(true);
-    // เก็บ snapshot ของไฟล์ที่มีอยู่แล้ว เพื่อให้ "Start watching" ถือว่า
-    // ไฟล์เหล่านี้ "เห็นแล้ว" — เฉพาะไฟล์ที่มาใหม่หลัง Start เท่านั้นที่ประมวลผล
     seenFiles_.clear();
     QDir dir(folder_);
     for (const auto& entry : dir.entryInfoList(QDir::Files)) {
         if (looksLikeImage(entry.fileName()))
             seenFiles_.insert(entry.absoluteFilePath());
     }
-    statusLabel_->setText(QString("Folder set — %1 ไฟล์เดิม (จะข้าม)")
-                              .arg(seenFiles_.size()));
+    setStatus(QString("Folder set — %1 ไฟล์เดิม (จะข้าม)")
+                  .arg(seenFiles_.size()));
 }
 
 void WatchTab::onToggleWatch() {
@@ -123,7 +206,9 @@ void WatchTab::onToggleWatch() {
         stopWorker();
         watching_ = false;
         watchBtn_->setText("Start watching");
-        statusLabel_->setText("Stopped");
+        liveLabel_->setText("● Idle");
+        liveLabel_->setStyleSheet("color: #6B7B78; font-size: 12px;");
+        setStatus("Stopped");
     } else {
         if (folder_.isEmpty()) return;
         startWorker();
@@ -149,7 +234,7 @@ void WatchTab::startWorker() {
                 onWorkerFinished(code);
             });
 
-    statusLabel_->setText("กำลังโหลด PaddleOCR (1-2 วินาที)…");
+    setStatus("กำลังโหลด PaddleOCR (1-2 วินาที)…");
     worker_->start(pythonExe(), {script});
     if (!worker_->waitForStarted(5000)) {
         QMessageBox::critical(this, "Python not found",
@@ -163,7 +248,8 @@ void WatchTab::startWorker() {
     fsWatcher_->addPath(folder_);
     watching_ = true;
     watchBtn_->setText("Stop watching");
-    // ตรวจหาไฟล์ใหม่ทันที (เผื่อมีของที่มาก่อนเริ่มจริง)
+    liveLabel_->setText("● LIVE");
+    liveLabel_->setStyleSheet("color: #10B981; font-size: 12px; font-weight: 600;");
     QTimer::singleShot(500, this, &WatchTab::scanForNew);
 }
 
@@ -186,7 +272,8 @@ void WatchTab::onClear() {
     table_->setRowCount(0);
     results_.clear();
     sendBtn_->setEnabled(false);
-    statusLabel_->setText(watching_ ? "Watching…" : "Idle");
+    refreshKpis();
+    setStatus(watching_ ? "Watching…" : "Idle");
 }
 
 void WatchTab::onSendToReview() {
@@ -195,8 +282,6 @@ void WatchTab::onSendToReview() {
 }
 
 void WatchTab::onDirChanged(const QString& /*path*/) {
-    // ดี-bounce: QFileSystemWatcher ส่งซิกแนล "directoryChanged" หลายรอบขณะ
-    // copy ไฟล์ใหญ่ → รอ 700ms ก่อน scan เพื่อหวังว่า file write เสร็จ
     QTimer::singleShot(700, this, &WatchTab::scanForNew);
 }
 
@@ -214,9 +299,8 @@ void WatchTab::scanForNew() {
 
 void WatchTab::enqueue(const QString& path) {
     pendingQueue_.enqueue(path);
-    statusLabel_->setText(QString("Queue: %1 รอ / %2 เสร็จ")
-                              .arg(pendingQueue_.size())
-                              .arg(results_.size()));
+    setStatus(QString("Queue: %1 รอ / %2 เสร็จ")
+                  .arg(pendingQueue_.size()).arg(results_.size()));
     pumpQueue();
 }
 
@@ -225,7 +309,7 @@ void WatchTab::pumpQueue() {
     if (!worker_ || worker_->state() != QProcess::Running) return;
     const QString next = pendingQueue_.dequeue();
     workerBusy_ = true;
-    statusLabel_->setText(QString("Processing %1").arg(QFileInfo(next).fileName()));
+    setStatus(QString("Processing %1").arg(QFileInfo(next).fileName()));
     worker_->write((next + "\n").toUtf8());
 }
 
@@ -242,7 +326,7 @@ void WatchTab::onWorkerStdout() {
             auto j = nlohmann::json::parse(line.toStdString());
             const auto event = j.value("event", std::string{});
             if (event == "ready") {
-                statusLabel_->setText("Watching (model loaded)…");
+                setStatus("Watching (model loaded)…");
             } else if (event == "result" || event == "error") {
                 ocr::AssetInfo info;
                 info.filename = j.value("filename", "");
@@ -267,16 +351,16 @@ void WatchTab::onWorkerStdout() {
 }
 
 void WatchTab::onWorkerStderr() {
-    // โยน stderr ทิ้ง (Python progress msgs) — ป้องกัน pipe เต็ม
     if (worker_) worker_->readAllStandardError();
 }
 
 void WatchTab::onWorkerFinished(int exitCode) {
     if (watching_) {
-        statusLabel_->setText(
-            QString("Python จบ exit=%1 — กด Start เพื่อเริ่มใหม่").arg(exitCode));
+        setStatus(QString("Python จบ exit=%1 — กด Start เพื่อเริ่มใหม่").arg(exitCode));
         watching_ = false;
         watchBtn_->setText("Start watching");
+        liveLabel_->setText("● Idle");
+        liveLabel_->setStyleSheet("color: #6B7B78; font-size: 12px;");
         if (fsWatcher_ && !folder_.isEmpty()) fsWatcher_->removePath(folder_);
     }
     workerBusy_ = false;
@@ -285,7 +369,9 @@ void WatchTab::onWorkerFinished(int exitCode) {
 void WatchTab::appendResult(const ocr::AssetInfo& info) {
     const int row = table_->rowCount();
     table_->insertRow(row);
-    table_->setItem(row, 0, new QTableWidgetItem(QString::number(info.photoIndex)));
+    // # column = sequential row number (1, 2, 3, ...) เพื่อให้เรียงตามลำดับ
+    // ที่ ภาพถูกประมวลผล ไม่ใช่ photoIndex จากชื่อไฟล์
+    table_->setItem(row, 0, new QTableWidgetItem(QString::number(row + 1)));
     table_->setItem(
         row, 1, new QTableWidgetItem(QString::fromStdString(
                     std::filesystem::path(info.filename).filename().string())));
@@ -293,12 +379,13 @@ void WatchTab::appendResult(const ocr::AssetInfo& info) {
     table_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(info.serialNo)));
     table_->setItem(row, 4,
                     new QTableWidgetItem(QString::number(info.ocrConfidence, 'f', 2)));
+    table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
     table_->scrollToBottom();
     results_.push_back(info);
     sendBtn_->setEnabled(true);
-    statusLabel_->setText(
-        QString("เสร็จ %1 ภาพ (queue เหลือ %2)")
-            .arg(results_.size()).arg(pendingQueue_.size()));
+    refreshKpis();
+    setStatus(QString("เสร็จ %1 ภาพ (queue เหลือ %2)")
+                  .arg(results_.size()).arg(pendingQueue_.size()));
 }
 
 }  // namespace autopilot::gui

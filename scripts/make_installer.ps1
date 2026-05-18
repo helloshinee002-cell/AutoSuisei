@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Build the AutoPilot installer with Inno Setup.
+    Build the AutoSuisei installer with Inno Setup.
 
 .DESCRIPTION
     1. Re-runs scripts/make_bundle.ps1 to ensure a fresh portable bundle
-       exists at C:\Users\hello\Backups\AutoPilot\AutoPilot-portable-*
-    2. Invokes Inno Setup's iscc.exe on installer/AutoPilot.iss
-    3. Output: C:\Users\hello\Backups\AutoPilot\AutoPilot-Setup-0.9.0.exe
+       exists at C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-*
+    2. Invokes Inno Setup's iscc.exe on installer/AutoSuisei.iss
+    3. Output: C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe
 
     Requires Inno Setup 6 installed (winget install JRSoftware.InnoSetup).
 #>
@@ -37,16 +37,16 @@ if (-not $SkipBundle) {
     & "$root\scripts\make_bundle.ps1"
 }
 
-$bundleDir = Get-ChildItem 'C:\Users\hello\Backups\AutoPilot\AutoPilot-portable-*' -Directory |
+$bundleDir = Get-ChildItem 'C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-*' -Directory |
              Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $bundleDir) { throw 'No portable bundle directory found. Run make_bundle.ps1 first.' }
 
 Write-Host "[2/2] Building installer with $iscc"
 Write-Host "      Bundle source: $($bundleDir.FullName)"
-& $iscc "/DBundleDir=$($bundleDir.FullName)" "$root\installer\AutoPilot.iss"
+& $iscc "/DBundleDir=$($bundleDir.FullName)" "$root\installer\AutoSuisei.iss"
 if ($LASTEXITCODE -ne 0) { throw "iscc failed with exit $LASTEXITCODE" }
 
-$out = Get-ChildItem 'C:\Users\hello\Backups\AutoPilot\AutoPilot-Setup-*.exe' |
+$out = Get-ChildItem 'C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-*.exe' |
        Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($out) {
     $mb = [math]::Round($out.Length / 1MB, 1)

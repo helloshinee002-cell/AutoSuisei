@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include <QDate>
 #include <QQueue>
 #include <QSet>
 #include <QString>
@@ -30,10 +31,13 @@ public:
     explicit WatchTab(QWidget* parent = nullptr);
     ~WatchTab() override;
 
+    QString statusText() const { return statusText_; }
+
 signals:
     /** ส่งผลทั้งหมดที่เก็บได้ไปให้ Review tab */
     void sendToReviewRequested(const std::vector<ocr::AssetInfo>& infos,
                                 const QString& folder);
+    void statusChanged(const QString& text);
 
 private slots:
     void onChooseFolder();
@@ -52,12 +56,15 @@ private:
     void enqueue(const QString& path);
     void pumpQueue();
     void appendResult(const ocr::AssetInfo& info);
+    void setStatus(const QString& text);
+    void refreshKpis();
 
     QString folder_;
     bool watching_{false};
     QSet<QString> seenFiles_;
     QQueue<QString> pendingQueue_;
     bool workerBusy_{false};
+    QString statusText_;
 
     QProcess* worker_{};
     QFileSystemWatcher* fsWatcher_{};
@@ -65,13 +72,23 @@ private:
 
     std::vector<ocr::AssetInfo> results_;
 
-    // UI
+    // UI — top buttons
     QPushButton* chooseBtn_{};
     QPushButton* watchBtn_{};
     QPushButton* clearBtn_{};
     QPushButton* sendBtn_{};
+
+    // UI — folder + live indicator
     QLabel* folderLabel_{};
-    QLabel* statusLabel_{};
+    QLabel* liveLabel_{};
+
+    // UI — KPI cards
+    QLabel* kpiTotal_{};
+    QLabel* kpiToday_{};
+    QLabel* kpiAvgConf_{};
+    QLabel* kpiPending_{};
+
+    // UI — table
     QTableWidget* table_{};
 };
 

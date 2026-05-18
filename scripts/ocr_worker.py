@@ -3,9 +3,12 @@
 Long-running PaddleOCR worker.
 
 Reads one image path per line from stdin, runs PaddleOCR + the same
-PC No / Serial extraction as bulk_extract.py, emits one JSON line per
+No / Serial extraction as bulk_extract.py, emits one JSON line per
 input on stdout. Loads the model once at startup so the watch-folder
 flow doesn't pay a 1-2s warm-up cost per image.
+
+Usage (from Qt QProcess):
+    python scripts/ocr_worker.py [--category=pc|monitor|accessory]
 
 Protocol:
     stdin  : <abs_path>\n  (one image per line; EOF or "QUIT" to exit)
@@ -14,22 +17,20 @@ Protocol:
              {"event":"error","filename":..., ...}   on per-image failure
 
 stderr is human-readable progress / warnings.
-
-Usage (from Qt QProcess):
-    python scripts/ocr_worker.py
 """
 import json
 import sys
 import time
 from pathlib import Path
 
-# Import the regex helpers from bulk_extract so the worker stays in sync
-# with whatever the batch script does — no duplicated parser logic.
+# Reuse the parser + rotation fallback from bulk_extract so the worker
+# stays in sync — no duplicated logic.
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 from bulk_extract import (  # noqa: E402
     extract_pc_no,
     extract_serial,
+    ocr_with_rotation,
     parse_filename,
 )
 
@@ -39,18 +40,32 @@ def emit(obj: dict) -> None:
     sys.stdout.flush()
 
 
+def parse_category() -> str:
+    """Read `--category=pc|monitor|accessory` from argv. Defaults to 'pc'."""
+    for a in sys.argv[1:]:
+        if a.startswith("--category="):
+            cat = a.split("=", 1)[1].lower()
+            if cat in {"pc", "monitor", "accessory"}:
+                return cat
+            print(f"unknown --category={cat}; using 'pc'", file=sys.stderr)
+    return "pc"
+
+
 def main() -> int:
+    category = parse_category()
     try:
         from rapidocr_onnxruntime import RapidOCR
     except ImportError as e:
         emit({"event": "fatal", "error": f"rapidocr import: {e}"})
         return 2
 
-    print("ocr_worker: loading PaddleOCR…", file=sys.stderr)
+    print(f"ocr_worker: loading PaddleOCR (category={category})…",
+          file=sys.stderr)
     t0 = time.time()
     engine = RapidOCR()
     print(f"ocr_worker: model ready in {time.time()-t0:.1f}s", file=sys.stderr)
-    emit({"event": "ready", "load_time": time.time() - t0})
+    emit({"event": "ready", "load_time": time.time() - t0,
+          "category": category})
 
     for line in sys.stdin:
         path_str = line.strip()
@@ -63,19 +78,16 @@ def main() -> int:
             continue
 
         try:
-            result, _ = engine(str(img))
+            joined, mean_conf, line_count = ocr_with_rotation(
+                engine, img, category)
         except Exception as e:  # noqa: BLE001
             emit({"event": "error", "filename": img.name,
                   "path": str(img), "error": str(e)})
             continue
 
-        confs = [float(score) for (_box, _text, score) in (result or [])]
-        mean_conf = sum(confs) / len(confs) if confs else 0.0
-        joined = "\n".join(text for (_box, text, _score) in (result or []))
-
         meta = parse_filename(img.name)
         pc_no = extract_pc_no(joined, meta["pc_range"])
-        serial = extract_serial(joined)
+        serial = extract_serial(joined, category)
 
         emit({
             "event": "result",
@@ -88,7 +100,7 @@ def main() -> int:
             "photo_date": meta["photo_date"],
             "pc_range": meta["pc_range"],
             "mean_confidence": mean_conf,
-            "line_count": len(confs),
+            "line_count": line_count,
         })
 
     print("ocr_worker: shutting down", file=sys.stderr)

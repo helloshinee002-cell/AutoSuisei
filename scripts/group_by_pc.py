@@ -72,7 +72,7 @@ def main() -> int:
 
     print(f"Unique PCs: {len(by_pc)}")
     print(f"PCs with >=1 serial: {sum(1 for e in by_pc.values() if e['serials'])}")
-    print(f"Photos missing PC No.: {len(missing)}")
+    print(f"Photos missing No.: {len(missing)}")
     print(f"Output: {out_path}")
     return 0
 

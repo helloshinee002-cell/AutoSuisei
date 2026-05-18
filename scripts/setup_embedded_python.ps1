@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Download + configure an embeddable Python distribution + install the
-    OCR runtime packages, ready to be bundled into the AutoPilot installer.
+    OCR runtime packages, ready to be bundled into the AutoSuisei installer.
 
 .DESCRIPTION
     Output: $root\build\embedded-python\

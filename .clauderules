@@ -1,4 +1,4 @@
-# AutoPilot — Coding Standards (Module-specific Rules)
+# AutoSuisei — Coding Standards (Module-specific Rules)
 
 ## Global C++ Rules
 [Memory]: ใช้ smart pointers เสมอ ห้ามใช้ raw `new`/`delete`

@@ -1,7 +1,9 @@
-qt_add_executable(AutoPilot
+qt_add_executable(AutoSuisei
     main.cpp
     MainWindow.h
     MainWindow.cpp
+    SidebarNav.h
+    SidebarNav.cpp
     MacrosTab.h
     MacrosTab.cpp
     OcrTab.h
@@ -14,10 +16,11 @@ qt_add_executable(AutoPilot
     ReviewTab.cpp
     WatchTab.h
     WatchTab.cpp
-    AutoPilot.rc
+    AutoSuisei.rc
+    resources.qrc
 )
 
-target_link_libraries(AutoPilot PRIVATE
+target_link_libraries(AutoSuisei PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Gui
@@ -34,11 +37,11 @@ target_link_libraries(AutoPilot PRIVATE
 # Bake the project's scripts/ path into the exe so it can find bulk_extract.py
 # at runtime without manual env-var setup. AUTOPILOT_SCRIPTS_DIR env var still
 # overrides this if set.
-target_compile_definitions(AutoPilot PRIVATE
+target_compile_definitions(AutoSuisei PRIVATE
     AUTOPILOT_SCRIPTS_DIR="${CMAKE_SOURCE_DIR}/scripts"
 )
 
-set_target_properties(AutoPilot PROPERTIES
+set_target_properties(AutoSuisei PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
@@ -53,10 +56,10 @@ if(WIN32)
     set(_qt_plugin_root "$<IF:$<CONFIG:Debug>,${_qt_plugin_root_debug},${_qt_plugin_root_release}>")
 
     foreach(_subdir platforms styles imageformats)
-        add_custom_command(TARGET AutoPilot POST_BUILD
+        add_custom_command(TARGET AutoSuisei POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${_qt_plugin_root}/${_subdir}"
-                "$<TARGET_FILE_DIR:AutoPilot>/${_subdir}"
+                "$<TARGET_FILE_DIR:AutoSuisei>/${_subdir}"
             COMMENT "Deploying Qt plugin: ${_subdir}"
             VERBATIM
         )

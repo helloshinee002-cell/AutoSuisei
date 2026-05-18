@@ -103,7 +103,7 @@ int runExtractFolder(const std::string& folder, const std::string& csvOut,
 
     std::cerr << "\n=== Summary ===\n"
               << "Total photos: " << images.size() << "\n"
-              << "PC No. extracted: " << withPcNo << " ("
+              << "No. extracted: " << withPcNo << " ("
               << (images.empty() ? 0 : 100 * withPcNo / static_cast<int>(images.size()))
               << "%)\n"
               << "Serial extracted: " << withSerial << " ("
@@ -114,11 +114,11 @@ int runExtractFolder(const std::string& folder, const std::string& csvOut,
 }
 
 void printUsage() {
-    std::cout << "AutoPilot CLI\n"
+    std::cout << "AutoSuisei CLI\n"
               << "  autopilot_cli ocr <image-path> [languages]\n"
               << "      OCR ภาพเดียว คืน JSON\n"
               << "  autopilot_cli extract-folder <dir> <out.csv> [languages]\n"
-              << "      Bulk OCR + extract PC No./Serial → CSV\n"
+              << "      Bulk OCR + extract No./Serial → CSV\n"
               << "  autopilot_cli play <macro-id>     (TODO Phase 2)\n"
               << "  autopilot_cli record <name>       (TODO Phase 2)\n";
 }

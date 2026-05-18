@@ -1,4 +1,9 @@
-# Project: AutoPilot — PC Inventory OCR
+# Project: AutoSuisei (เดิม AutoPilot) — PC Inventory OCR
+
+> **Note**: Product rebrand 2026-05-18 — exe + window title + installer ใช้ชื่อ AutoSuisei
+> แต่โฟลเดอร์ source `Documents\AutoPilot`, C++ namespace `autopilot::`, library targets
+> (`autopilot_core`, etc.), root CMake project name, และ env var `AUTOPILOT_SCRIPTS_DIR`
+> ยังคงชื่อเดิมเพื่อลด churn
 
 Windows desktop tool ที่ใช้ OCR ดึง PC No. + Dell serial จากภาพถ่ายมือถือ
 ของ PC ที่ wipe-off แล้ว → review/correct ใน GUI → rename ไฟล์ภาพอัตโนมัติ
@@ -26,12 +31,12 @@ vcpkg install --triplet x64-windows
 # DEBUG build (พัฒนา)
 cmake --preset windows-x64-debug
 cmake --build --preset windows-x64-debug
-.\build\windows-x64-debug\src\gui\AutoPilot.exe
+.\build\windows-x64-debug\src\gui\AutoSuisei.exe
 
 # RELEASE build (distribute)
 cmake --preset windows-x64-release
-cmake --build --preset windows-x64-release --target AutoPilot
-.\build\windows-x64-release\src\gui\AutoPilot.exe
+cmake --build --preset windows-x64-release --target AutoSuisei
+.\build\windows-x64-release\src\gui\AutoSuisei.exe
 
 # Run all tests (debug only — tests link debug deps)
 ctest --preset windows-x64-debug --output-on-failure
@@ -113,8 +118,9 @@ docs/          dev-plan.md (phase-by-phase log)
 ## Project Status
 - Phase 9.5 stable: **98.4%** PC No. accuracy บน Train2 (632 ภาพ vs user ground truth)
 - Phase 11: Watch folder live extract เสร็จ
-- Release build: `build/windows-x64-release/src/gui/AutoPilot.exe` (459 KB)
-- **Installer (เสร็จ)**: `C:\Users\hello\Backups\AutoPilot\AutoPilot-Setup-0.9.0.exe` (108 MB, self-contained — มี Python + rapidocr + MSVC CRT bundled)
+- Release build: `build/windows-x64-release/src/gui/AutoSuisei.exe` (459 KB)
+- **Installer (เดิม)**: `C:\Users\hello\Backups\AutoPilot\AutoPilot-Setup-0.9.0.exe` (108 MB, ก่อน rebrand)
+- **Installer (ใหม่ — รอ rebuild)**: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe`
 - Git tag: `v0.9.0-stable`
 - ดู `docs/dev-plan.md` สำหรับประวัติ phase-by-phase
 - **ดู `docs/tomorrow.md`** สำหรับงานค้าง session ถัดไป (rename → AutoSuisei + Monitor/Accessory tabs)

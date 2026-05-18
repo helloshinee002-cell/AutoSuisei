@@ -74,7 +74,7 @@ TEST(ReviewModel, LoadCsv_FromBulkExtractFormat) {
         "photo_index,filename,pc_no,serial_no,batch_id,photo_date,pc_range,"
         "mean_confidence,line_count,warnings\n"
         "10,img10.jpg,315,6YW8RV2,,2026-05-17,,0.837,8,\n"
-        "11,img11.jpg,,,,2026-05-17,,0.770,8,PC No. not found; Serial not found\n";
+        "11,img11.jpg,,,,2026-05-17,,0.770,8,No. not found; Serial not found\n";
     auto path = writeTempCsv(csv);
 
     ReviewModel model;

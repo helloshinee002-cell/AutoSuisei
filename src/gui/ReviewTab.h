@@ -11,6 +11,7 @@
 class QCheckBox;
 class QLabel;
 class QLineEdit;
+class QProgressBar;
 class QPushButton;
 class QTableWidget;
 class QTableWidgetItem;
@@ -28,11 +29,14 @@ class ReviewTab : public QWidget {
 public:
     explicit ReviewTab(QWidget* parent = nullptr);
 
-    /** โหลดผล bulk extract เข้า ReviewModel ตรง ๆ (ไม่ต้อง save/load CSV) +
-     *  ตั้ง images folder + เลือก row แรกที่ยังไม่ verified
-     *  ใช้เมื่อ OcrTab.sendToReviewRequested ส่งสัญญาณมา */
+    QString statusText() const { return statusText_; }
+
+    /** โหลดผล bulk extract เข้า ReviewModel ตรง ๆ (ไม่ต้อง save/load CSV) */
     void loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
                             const QString& folder);
+
+signals:
+    void statusChanged(const QString& text);
 
 private slots:
     void onLoadCsv();
@@ -41,37 +45,51 @@ private slots:
     void onApplyAndNext();
     void onSave();
     void onRename();
+    void onClear();
 
 private:
     void rebuildTable();
     void selectRow(int row);
     void loadImageForRow(int row);
     void updateStatus();
+    void setStatus(const QString& text);
 
     ocr::ReviewModel model_;
+    /** Mirrors ReviewModel rows 1:1 when loaded via extraction — gives access
+     *  to batch/date that aren't in ReviewModel itself. Empty when CSV-loaded. */
+    std::vector<ocr::AssetInfo> sourceInfos_;
     QString csvPath_;
     QString imagesFolder_;
     int currentRow_{-1};
+    QString statusText_;
 
-    // left pane
+    // top buttons
     QPushButton* loadCsvBtn_{};
     QPushButton* loadFolderBtn_{};
     QPushButton* saveBtn_{};
+    QPushButton* clearBtn_{};
     QLabel* csvLabel_{};
     QLabel* folderLabel_{};
-    QTableWidget* table_{};
-    QLabel* status_{};
 
-    // right pane
+    // progress
+    QProgressBar* progressBar_{};
+    QLabel* progressLabel_{};
+
+    // table
+    QTableWidget* table_{};
+
+    // right pane: image + form
     QLabel* imageView_{};
     QLineEdit* pcEdit_{};
     QLineEdit* serialEdit_{};
+    QLineEdit* batchEdit_{};
+    QLineEdit* dateEdit_{};
     QLineEdit* notesEdit_{};
     QCheckBox* verifiedCheck_{};
     QLabel* originalLabel_{};
     QPushButton* applyBtn_{};
 
-    // bottom: rename controls
+    // rename bar
     QCheckBox* renamePcCheck_{};
     QCheckBox* renameSerialCheck_{};
     QCheckBox* renameNotesCheck_{};
