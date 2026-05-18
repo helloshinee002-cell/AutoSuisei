@@ -151,7 +151,7 @@ def build():
     pdf.h1("ภาพรวม")
     pdf.body(
         "AutoSuisei เป็น Windows desktop app ที่ใช้ PaddleOCR "
-        "(rapidocr-onnxruntime) อ่านเลข PC No. (เลขสติกเกอร์/กระดาษ) "
+        "(rapidocr-onnxruntime) อ่านเลข No. (เลขกำกับบนสติกเกอร์/กระดาษ) "
         "และ Serial Number จากภาพถ่ายอุปกรณ์ IT (PC, Laptop, Monitor, "
         "Accessory) แล้วช่วยให้ผู้ใช้ตรวจสอบ แก้ไข และเปลี่ยนชื่อไฟล์ภาพ "
         "เป็นข้อมูลที่อ่านได้ในไม่กี่คลิก"
@@ -314,11 +314,14 @@ def build():
         "ดู image preview เพื่ออ่านเอง — ถ้าไม่ชัดอาจต้องถ่ายภาพใหม่"
     )
     pdf.bullet(
-        "Notes field ใช้ใส่หมายเหตุได้ เช่น “เลขเลือนรางมาก”, “ใช้แทนคีย์ borer” "
-        "ฯลฯ — Notes จะติดไปกับชื่อไฟล์ใหม่ตอน rename ด้วย"
+        "Notes field ใช้ใส่หมายเหตุได้ เช่น “เลขเลือนรางมาก”, “สลากชำรุด”, "
+        "“ของแถม” ฯลฯ — Notes จะติดไปกับชื่อไฟล์ใหม่ตอน rename ด้วย"
     )
 
     pdf.h2("ผลที่ทดสอบ")
+    pdf.bullet(
+        "Train PC&Laptop (632 ภาพ “Laptop 301-400”): No. 98.3% / Serial 85.1%"
+    )
     pdf.bullet(
         "Train Monitor (754 ภาพ Dell monitor): No. 98.8% / Serial 94.7%"
     )

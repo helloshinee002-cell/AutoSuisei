@@ -115,33 +115,41 @@ docs/          dev-plan.md (phase-by-phase log)
 - **Range hint**: filename "Laptop 301-400" → กรอง PC No. fallback ให้อยู่ใน [301, 400]
 - **Scripts dir**: `AUTOPILOT_SCRIPTS_DIR` compile def ชี้ source/scripts/ (env var override); bundled exe ใช้ `<exeDir>/scripts/`
 
-## Project Status
-- Phase 9.5 stable: **98.4%** PC No. accuracy บน Train2 (632 ภาพ vs user ground truth)
-- Phase 11: Watch folder live extract เสร็จ
-- Release build: `build/windows-x64-release/src/gui/AutoSuisei.exe` (459 KB)
-- **Installer (เดิม)**: `C:\Users\hello\Backups\AutoPilot\AutoPilot-Setup-0.9.0.exe` (108 MB, ก่อน rebrand)
-- **Installer (ใหม่ — รอ rebuild)**: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe`
-- Git tag: `v0.9.0-stable`
-- ดู `docs/dev-plan.md` สำหรับประวัติ phase-by-phase
-- **ดู `docs/tomorrow.md`** สำหรับงานค้าง session ถัดไป (rename → AutoSuisei + Monitor/Accessory tabs)
+## Project Status (post-session 2026-05-18)
+- **Product**: Rebrand AutoPilot → AutoSuisei (exe/window/installer); namespace + libs เก็บชื่อเดิม
+- **GUI**: Claude Design dark theme + sidebar nav (240px) แทน QTabWidget — `theme.qss`, `SidebarNav`, ADLaM Display font bundled
+- **Parser**: Category-aware (`pc`/`monitor`/`accessory`) + rotation fallback (0°/90°/270°/180°)
+- **Tested accuracy** (4 datasets, 2104 ภาพรวม):
+  - **PC&Laptop** Train2 (632): No. **98.3%** / Serial **85.1%**
+  - **Monitor** (754 Dell): No. **98.8%** / Serial **94.7%**
+  - **Monitor 2** (300 มีภาพหมุน): No. **96.0%** / Serial **96.3%**
+  - **Accessory** (418 Olivetti/Verifone/Feitian): No. **66.3%** / Serial **83.3%**
+- **Build artifacts**:
+  - exe: `build/windows-x64-release/src/gui/AutoSuisei.exe` (776 KB)
+  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260518-201724` (428 MB)
+  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe` (108 MB)
+- **Docs**: `docs/AutoSuisei_User_Guide.pdf` (6 pages, Thai+English, fpdf2+Tahoma)
+- **Remote**: ตั้ง `origin = https://github.com/helloshinee002-cell/AutoSuisei.git` แล้ว
+  — local commit `e3b8c58` ค้าง push (รอ user auth ผ่าน PAT)
+- ดู `docs/dev-plan.md` สำหรับ phase 0-11, `docs/CHAT_HISTORY_2026-05-18.md` สำหรับ session นี้,
+  `docs/SKILL.md` สำหรับ pattern ที่นำกลับมาใช้ใหม่ได้
 
-## Session 2026-05-17 summary
+## Session 2026-05-18 summary (v0.9.0)
 
-Started PC No. accuracy: ~50% / Ended: **98.4%** บน 632 ภาพ Train2
+Phases:
+- **Rebrand**: AutoPilot → AutoSuisei (16+ files touched, namespace เก็บ)
+- **OCR restructure**: 3 category buttons (PC&Laptop/Monitor/Accessory) แทน "Bulk Extract Folder"
+- **Parser**: เพิ่ม `extract_serial_monitor` (CN-…-A00) + `extract_serial_accessory` (flexible: labeled / numeric+dashes / 8-15 digit, skip CBA barcode) + `_merge_cn_fragments` line-merge helper
+- **Rotation fallback**: `ocr_with_rotation()` ลอง 4 มุม, เลือกผลตาม `(has_sn, has_pc, mean_conf)` → +43pp Serial บน Monitor 2
+- **Watch fix**: `ocr_worker.py` รับ `--category` flag (was crashing on `extract_serial(text)` post-refactor)
+- **GUI redesign**: Claude Design template — dark theme `#0B0F0E`/emerald `#10B981`, sidebar 240px, KPI cards (Watch), progress bar (Review), bundled ADLaM Display font + Thai fallback
+- **OCR controls**: ลบ "PC No." → "No." ทุก label, sequential `#` column, Stop button (kill QProcess)
+- **Review**: เพิ่ม Clear button + Batch/Date read-only fields + Date/OK columns
+- **User Guide PDF**: 6 หน้า, screenshots ของ 3 tabs, FAQ + tested accuracy
 
-Phases done this session:
-- 9.1 false-positive blocklist (commit `cb6e852`)
-- 9.2 lone-digit fallback (commit `42d811c`)
-- 9.3 Manual Review UI (commit `c48fec0`) — user verified 622/632 ground truth
-- 9.4 serial dedup (commit `e631f18`)
-- 9.5 range-guided extraction (commits `4ce1f25`, `5df5cca`) → 98.4%
-- 9.6/9.7/9.8 GUI overhaul (commit `e5c1f73`) — QProcess pipeline, ลบ 3 tabs, Rename feature
-- 11 Watch folder live extract (commit `70184a5`)
-- Release build + Inno Setup installer + embedded Python + Suisei icon + MSVC CRT bundling
-  (commits `252b2e5`, `405808d`, `28cded3`, `687e048`, `03c12b9`, `2cac371`)
-
-Key learnings:
-- Tesseract 7.8% PC No. hit → PaddleOCR (rapidocr-onnxruntime) 97.9% — use Python sidecar via QProcess
-- Range hint from filename ("Laptop 301-400") + iterate primary matches → +4.6 pp
-- DLL bundling for installer: vcpkg DLLs ✓ + Qt plugins ✓ + MSVC CRT next to exe AND
-  ในโฟลเดอร์ python/ ด้วย (Python loader ค้นโฟลเดอร์ของ python.exe ไม่ใช่ของ main exe)
+Key learnings (เพิ่ม):
+- **Rotation fallback** ใช้ cv2.rotate ก่อน OCR — ช่วย Serial 53% → 96% บน batch ที่มีภาพหมุน
+- **Pause/Resume**: Win32 `NtSuspendProcess` (ntdll, undocumented) ไม่เสถียร — user ขอลบออก
+- **PaddleOCR limitations**: ตัวเลขเดี่ยวขนาดใหญ่บนกระดาษขาว (เช่น "1", "2") OCR detector อาจ skip
+- **QSS + setItemWidget**: `padding` บน `::item` ทำให้ widget ใน setItemWidget แคบจนตัดข้อความ — ลบออก
+- **Native window frame**: ตัดสินใจไม่ทำ frameless titlebar (รักษา Windows Snap / accessibility)
