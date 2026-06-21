@@ -17,7 +17,7 @@ namespace autopilot::storage { class IOcrResultRepository; }
 
 namespace autopilot::gui {
 
-enum class AssetCategory { PcLaptop, Monitor, Accessory };
+enum class AssetCategory { PcLaptop, Monitor, Accessory, Donate };
 
 /**
  * OCR tab: Category-aware bulk extraction
@@ -46,6 +46,7 @@ private slots:
     void onPcLaptop();
     void onMonitor();
     void onAccessory();
+    void onDonate();
     void onClear();
     void onSendToReview();
     void onStop();
@@ -77,6 +78,7 @@ private:
     QPushButton* pcLaptopBtn_{};
     QPushButton* monitorBtn_{};
     QPushButton* accessoryBtn_{};
+    QPushButton* donateBtn_{};
     QPushButton* stopBtn_{};
     QPushButton* clearBtn_{};
     QPushButton* sendToReviewBtn_{};

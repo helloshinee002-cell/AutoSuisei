@@ -48,6 +48,7 @@ const char* categoryFlag(AssetCategory c) {
         case AssetCategory::PcLaptop:  return "pc";
         case AssetCategory::Monitor:   return "monitor";
         case AssetCategory::Accessory: return "accessory";
+        case AssetCategory::Donate:    return "donate";
     }
     return "pc";
 }
@@ -57,6 +58,7 @@ const char* categoryLabel(AssetCategory c) {
         case AssetCategory::PcLaptop:  return "PC&Laptop";
         case AssetCategory::Monitor:   return "Monitor";
         case AssetCategory::Accessory: return "Accessory";
+        case AssetCategory::Donate:    return "Donate";
     }
     return "PC&Laptop";
 }
@@ -81,7 +83,7 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     root->addWidget(subtitle);
 
     // ----- Table -----
-    table_ = new QTableWidget(0, 6);
+    table_ = new QTableWidget(0, 7);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_->setAlternatingRowColors(true);
     table_->verticalHeader()->setVisible(false);
@@ -98,6 +100,9 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     monitorBtn_->setToolTip("Default: C:/Users/hello/Downloads/Train Monitor — S/N CN-...-A00 parser");
     accessoryBtn_ = new QPushButton("Accessory");
     accessoryBtn_->setToolTip("Default: C:/Users/hello/Downloads/Train Accessory — flexible parser");
+    donateBtn_ = new QPushButton("Donate");
+    donateBtn_->setToolTip("Default: C:/Users/hello/Downloads/Train Donate — No. + Service Tag "
+                           "+ ชื่อโรงเรียน/สถานที่ (Thai via Tesseract)");
     stopBtn_ = new QPushButton("Stop");
     stopBtn_->setEnabled(false);
     stopBtn_->setToolTip("ยกเลิกการประมวลผล — ผลที่ทำไปแล้วยังอยู่ในตาราง");
@@ -109,6 +114,7 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     btnRow->addWidget(pcLaptopBtn_);
     btnRow->addWidget(monitorBtn_);
     btnRow->addWidget(accessoryBtn_);
+    btnRow->addWidget(donateBtn_);
     btnRow->addSpacing(20);
     btnRow->addWidget(stopBtn_);
     btnRow->addStretch();
@@ -121,6 +127,7 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     connect(pcLaptopBtn_, &QPushButton::clicked, this, &OcrTab::onPcLaptop);
     connect(monitorBtn_, &QPushButton::clicked, this, &OcrTab::onMonitor);
     connect(accessoryBtn_, &QPushButton::clicked, this, &OcrTab::onAccessory);
+    connect(donateBtn_, &QPushButton::clicked, this, &OcrTab::onDonate);
     connect(stopBtn_, &QPushButton::clicked, this, &OcrTab::onStop);
     connect(sendToReviewBtn_, &QPushButton::clicked, this, &OcrTab::onSendToReview);
     connect(clearBtn_, &QPushButton::clicked, this, &OcrTab::onClear);
@@ -128,16 +135,17 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
 
 void OcrTab::rebuildHeaders() {
     table_->setRowCount(0);
-    table_->setColumnCount(6);
+    table_->setColumnCount(7);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Batch", "Date"});
+        {"#", "File", "No.", "Serial", "Org / สถานที่", "Batch", "Date"});
     table_->horizontalHeader()->setStretchLastSection(false);
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     table_->setColumnWidth(0, 50);
     table_->setColumnWidth(2, 110);
-    table_->setColumnWidth(3, 220);
-    table_->setColumnWidth(4, 110);
-    table_->setColumnWidth(5, 150);
+    table_->setColumnWidth(3, 200);
+    table_->setColumnWidth(4, 180);
+    table_->setColumnWidth(5, 90);
+    table_->setColumnWidth(6, 110);
 }
 
 void OcrTab::setStatus(const QString& text) {
@@ -157,6 +165,11 @@ void OcrTab::onMonitor() {
 void OcrTab::onAccessory() {
     runCategory(AssetCategory::Accessory,
                 "C:/Users/hello/Downloads/Train Accessory");
+}
+
+void OcrTab::onDonate() {
+    runCategory(AssetCategory::Donate,
+                "C:/Users/hello/Downloads/Train Donate");
 }
 
 void OcrTab::runCategory(AssetCategory category, const QString& defaultFolder) {
@@ -192,6 +205,7 @@ void OcrTab::processFolder(const QString& folder, AssetCategory category) {
     pcLaptopBtn_->setEnabled(false);
     monitorBtn_->setEnabled(false);
     accessoryBtn_->setEnabled(false);
+    donateBtn_->setEnabled(false);
     stopBtn_->setEnabled(true);
     bulkStdoutBuf_.clear();
     bulkExpected_ = 0;
@@ -221,6 +235,7 @@ void OcrTab::processFolder(const QString& folder, AssetCategory category) {
         pcLaptopBtn_->setEnabled(true);
         monitorBtn_->setEnabled(true);
         accessoryBtn_->setEnabled(true);
+        donateBtn_->setEnabled(true);
     }
 }
 
@@ -251,6 +266,7 @@ void OcrTab::onBulkStdout() {
                 info.filename = j.value("filename", "");
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
+                info.orgName = j.value("org_name", "");
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
                 info.photoIndex = j.value("photo_index", 0);
@@ -296,6 +312,7 @@ void OcrTab::onBulkFinished(int exitCode) {
     pcLaptopBtn_->setEnabled(true);
     monitorBtn_->setEnabled(true);
     accessoryBtn_->setEnabled(true);
+    donateBtn_->setEnabled(true);
     stopBtn_->setEnabled(false);
     sendToReviewBtn_->setEnabled(!bulkResults_.empty());
     if (exitCode != 0) {
@@ -319,8 +336,9 @@ void OcrTab::addAssetRow(const ocr::AssetInfo& info) {
                     std::filesystem::path(info.filename).filename().string())));
     table_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(info.pcNo)));
     table_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(info.serialNo)));
-    table_->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(info.batchId)));
-    table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
+    table_->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(info.orgName)));
+    table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.batchId)));
+    table_->setItem(row, 6, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
 }
 
 void OcrTab::onClear() {

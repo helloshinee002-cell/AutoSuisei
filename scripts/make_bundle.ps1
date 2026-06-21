@@ -89,6 +89,20 @@ Get-ChildItem "$root\scripts" -File -Filter '*.py' | ForEach-Object {
     Copy-Item $_.FullName $scriptsTarget
 }
 
+# 3b. ML model (sticker digit detector) — sticker_digit.py resolves it as
+# <scripts-parent>/models/sticker_digit.onnx, i.e. <bundle>/models/. Without
+# this the donate sticker-number model is missing and the Photos-3-001 fusion
+# silently falls back to crop-only (DonateMore still works via the explicit path).
+$modelsSrc = Join-Path $root 'models'
+if (Test-Path "$modelsSrc\sticker_digit.onnx") {
+    Write-Host '  copying models/sticker_digit.onnx...'
+    $modelsTarget = Join-Path $bundle 'models'
+    New-Item -ItemType Directory -Path $modelsTarget | Out-Null
+    Copy-Item "$modelsSrc\sticker_digit.onnx" $modelsTarget
+} else {
+    Write-Warning 'models/sticker_digit.onnx not found — donate sticker model will be absent from bundle.'
+}
+
 # 4. embedded Python (if it's been built — produced by setup_embedded_python.ps1)
 $pyDir = Join-Path $root 'build\embedded-python'
 if (Test-Path "$pyDir\python.exe") {

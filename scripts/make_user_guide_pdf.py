@@ -139,7 +139,7 @@ def build():
     pdf.ln(40)
     pdf.set_font("Tahoma", "", 12)
     pdf.set_text_color(*DARK_TEXT)
-    pdf.cell(0, 7, "User Guide  •  Version 0.9.0", align="C",
+    pdf.cell(0, 7, "User Guide  •  Version 0.9.1", align="C",
               new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Tahoma", "", 10)
     pdf.set_text_color(*TEXT_DIM)
@@ -171,7 +171,7 @@ def build():
 
     pdf.h2("การติดตั้ง")
     pdf.body(
-        "1. ดาวน์โหลด AutoSuisei-Setup-0.9.0.exe จาก GitHub Releases\n"
+        "1. ดาวน์โหลด AutoSuisei-Setup-0.9.1.exe จาก GitHub Releases\n"
         "2. ดับเบิ้ลคลิกไฟล์ติดตั้ง (อาจต้องสิทธิ์ admin)\n"
         "3. เปิดโปรแกรมจากเมนู Start → AutoSuisei"
     )

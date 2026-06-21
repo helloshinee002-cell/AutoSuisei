@@ -389,3 +389,65 @@ Phase 9.5 done. Future Phase 10 (image preprocessing) or Phase 11 (fine-tune det
 | 2026-05-16 | Tesseract local (ไม่ใช่ cloud) | offline-first ไม่มี recurring cost |
 | 2026-05-16 | CDP แทน CEF | binary size เล็ก ไม่ต้อง embed Chromium |
 | 2026-05-16 | Lua แทน Python | embed ง่าย binary เล็ก sandbox controllable |
+| 2026-06-19 | หมวด `donate` Python-only | ตามแพตเทิร์น monitor/accessory; reuse `pc` parser สำหรับ No./Serial |
+| 2026-06-19 | Thai org_name ใช้ Tesseract `tha` (ไม่ fine-tune) | RapidOCR ไม่มีไทย; tha สำเร็จรูปนิ่ง + อยู่ใน stack แล้ว |
+
+---
+
+## Phase 12 — หมวด `donate` (2026-06-19)
+**เป้าหมาย**: อ่านภาพบริจาค → No. + Service Tag + ชื่อโรงเรียน/สถานที่ (ไทย)
+
+- **No. + Service Tag**: reuse `extract_pc_no` + `extract_serial_pc` (หมวด `donate` fall-through ไป pc)
+- **org_name (ไทย, field ใหม่)**: `ocr_thai()` shell out `tesseract -l tha+eng --psm 6` (copy ASCII temp กัน unicode path)
+  + `extract_org_name()` (marker `โรงเรียน/รร./เรียน` หรือบรรทัดไทยยาวสุด) + `_clean_org_line()`
+- **ร้อยฟิลด์**: `bulk_extract.py`/`ocr_worker.py` (คอลัมน์/event `org_name`) → `AssetInfo.orgName` →
+  OcrTab (ปุ่ม Donate + คอลัมน์ Org) → `ReviewRow.orgName` (loadCsv/saveCsv) → ReviewTab (คอลัมน์ + ฟอร์ม) → `ground_truth.csv`
+- **Verify**: `scripts/test_donate_parser.py` ✓ • 8 ภาพจริง: org 8/8, Serial 7/8, No. 4/4 (ภาพจอ) • ctest 106/106 ✓
+- **ค้าง**: bundle Tesseract เข้า installer (ตอนนี้ dev ใช้ system tesseract 5.4); sticker Thai ยังหยาบ (อนาคต: crop label + preprocess)
+
+### Phase 12 rev 3 — เลขสติกเกอร์เป็น No. (2026-06-19)
+ภาพชุด `Photos-3-001` (131 รูป) = SERVICE TAG + Express code + สติกเกอร์ `โรงเรียน... <เลข 1/2/4/8/16>`.
+ผู้ใช้: เก็บไทยไว้ (best-effort) + ให้ฟิลด์ "เลข" จับเลขสติกเกอร์ด้วย, Express code ไม่อ่าน
+- เพิ่ม `extract_pc_no_donate()` (Python-only): `extract_pc_no` → ถ้าว่างจับ `_STICKER_NO_RE` 1-3 หลัก
+  (ทิ้งบรรทัด SERVICE TAG; digit-boundary ตัด Express/IO-noise ≥4 หลัก)
+- **donate ข้าม rotation** ใน `ocr_with_rotation` — ภาพตั้งตรง, การหมุนไล่ conf ทิ้งเลขสติกเกอร์ (No. 1/5→3/5) + เร็วขึ้น (8.3→5.3s/รูป)
+- ไม่แตะ C++ (ใช้ฟิลด์ pc_no/org_name เดิมจาก rev 1) — ctest ยัง 106/106
+- ผล sample 5 รูป: SN 5/5, No. 3/5 (พลาดเฉพาะเลขเดี่ยวที่ OCR ทิ้ง), Thai 5/5 (หยาบ ให้คนแก้)
+
+### Phase 12 rev 4 — position-aware No. (2026-06-19)
+ดัน % เลขสติกเกอร์ (ไม่ถ่ายใหม่). วิเคราะห์: เลขที่พลาด = (1) detector ข้ามเลขเดี่ยวบนกระดาษขาว
+(non-deterministic ด้วย) — กู้ extraction ไม่ได้, (2) เลขปน/ฟิวส์ฝั่งซ้าย — แก้ได้ด้วยตำแหน่ง
+- เพิ่ม `ocr_donate()` (OCR รอบเดียว เก็บ box) + `sticker_no_from_boxes()`: สติกเกอร์อยู่ซ้าย (x<45%),
+  Express/Tag/IO อยู่กลาง-ขวา → กรองซ้าย ดึงเลขซ้ายสุด (จับฟิวส์ `Hainn2`→`2`). ตัด rotation guard เดิมทิ้ง
+- **ผล 131**: No. 79→**83/131 (63%)**; precision เด่น — เลข 3-หลัก noise 5→**1**. recall ติดเพดาน detector
+- ทดลองแล้ว**ไม่เอา**: ลด det threshold (ได้เลขผิด `#5#1`→5), naive white-crop (grille แย่ง blob)
+- ค้าง/ถ้าอยากดัน recall: crop สติกเกอร์ (rectangle/low-variance + left-prior) → OCR เฉพาะป้าย = เพดานสูงสุด แต่งานใหญ่
+
+### Phase 12 rev 5 — YOLO digit model + fusion (2026-06-21)
+ดัน No. เป้า 95% แบบ offline+recurring → เทรนโมเดลเฉพาะงาน (แผน `~/.claude/plans/95-sunny-glade.md`)
+- **YOLOv8n digit-detector** (class 0-9) เทรนจาก **synthetic** (สติกเกอร์ปลอม composite บน chassis จริง
+  ครึ่งขวา; `scripts/train/synth_stickers.py`) → 20 epoch mAP50 **0.978** → export `models/sticker_digit.onnx`
+  (imgsz 512). inference `scripts/sticker_digit.py` (onnxruntime, ใน stack เดิม ไม่ต้อง torch)
+- **วิเคราะห์ failure (gt อ่านเองจากภาพ 65 รูป → `build/donate_ground_truth.csv`)**: โมเดล
+  **high-precision/low-recall** — detect digit ถูกแต่ **หล่นหลัก** (มองไม่เห็นเลข 1/5/9 บนสติกเกอร์ขาว;
+  dump conf>0.12 แล้วหลักที่หาย *ไม่มี box เลย*) = synthetic→real gap. model-primary จึง **regress** เลข 2 หลัก
+- **fusion** `fuse_sticker_no(model_no, crop_no)`: model ⊆ crop ที่ยาวกว่า = หล่นหลัก → ใช้ crop;
+  ไม่งั้น crop เพี้ยน → ใช้ model. บน 31 เคส crop≠model: **24/31** (crop-only 12 / model-only 12)
+- **ผล (gt 64 labeled / proj 131)**: crop 39%/~55% • model 61%/~64% • **fusion 80%/~75%**
+- **ยังไม่ถึง 95%** → Phase B: fine-tune โมเดลด้วยภาพจริง+digit box (เน้น 1/5/9). gt 65 รูปเป็น seed
+- gotcha: embeddable python ไม่เติม script dir → เพิ่ม `sys.path.insert(0, here)` ใน bulk_extract.py;
+  `cache='ram'` ทำ train OOM → ใช้ `'disk'` ถ้า retrain
+
+### Phase 12 rev 6 — DonateMore (1319 รูปจริง) : parser regex, ไม่ต้องเทรน (2026-06-21)
+dataset donate จริงชุดใหญ่ `C:\Users\hello\Downloads\DonateMore\PC` (batch `Donate Laptop 30`/`SN PC 1-990`/
+`desktop 1-40`). 2 แบบ: **screen** (Notepad "NO.7"/"no.20" + cmd `wmic SerialNumber`), **chassis** (Dell
+`SERVICE TAG` + สติกเกอร์ "New PC Donate 677").
+- **วิเคราะห์ราก**: probe raw RapidOCR → เลข+serial **อยู่ในข้อความครบ** (typed/printed); parser เดิม (จูนสติกเกอร์
+  ไทยซ้าย) ไม่ดึง → ได้เลขเดี่ยวผิด. **ตัวแปร = regex ไม่ใช่โมเดล**
+- เพิ่ม `extract_no_donate_explicit(text, range_hint)`: `PC_NO_RE` ("NO.x") → เลขล้วน 1-3 หลักบรรทัด**หลัง**คำ
+  "Donate" (กัน stray เช่น '256') + กรอง range hint; `extract_serial_donate`: labeled → wmic anchor
+  "SerialNumber" (ข้าม `DESKTOP-`) + ผ่อน alpha filter (Dell tag 2-อักษร)
+- **fast-path** donate: เจอ explicit → ใช้เลย + ข้าม model/Thai-Tesseract (1.0s/รูป เทียบ 7s); ไม่เจอ = สติกเกอร์
+  ไทย → fusion เดิม → **ไม่ regress Photos-3-001** (explicit คืน '' / self-check ✓)
+- **ผล 1319**: No. **99.6% coverage / 100% (15/15 hand-verified)**, Serial 84% → `build/donatemore.csv`
+- gt: `build/donatemore_gt_sample.csv` (15 รูป). C++ ไม่แตะ

@@ -35,6 +35,13 @@ desktop.ini
 __pycache__/
 *.pyc
 
+# Digit-model training (large — venv ~2GB, synthetic dataset + run outputs)
+scripts/train/.venv/
+scripts/train/dataset/
+scripts/train/runs/
+# COCO pretrained weights auto-downloaded by ultralytics
+yolov8n.pt
+
 # Qt
 moc_*.cpp
 qrc_*.cpp
@@ -48,3 +55,4 @@ Testing/
 tests/data/*.png
 tests/data/*.jpg
 !tests/data/README.md
+AutoSuisei/.obsidian/
