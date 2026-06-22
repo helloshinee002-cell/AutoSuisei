@@ -125,10 +125,10 @@ docs/          dev-plan.md (phase-by-phase log)
   - **Monitor** (754 Dell): No. **98.8%** / Serial **94.7%**
   - **Monitor 2** (300 มีภาพหมุน): No. **96.0%** / Serial **96.3%**
   - **Accessory** (418 Olivetti/Verifone/Feitian): No. **66.3%** / Serial **83.3%**
-- **Build artifacts** (v0.9.3, 2026-06-22 — donate = No.+Serial, ลบ Org/ไทย; **แก้ Unicode-path** Rename/Save CSV):
-  - exe: `build/windows-x64-release/src/gui/AutoSuisei.exe` (780 KB)
-  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260622-194028` (440 MB) + .zip (173 MB)
-  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.3.exe` (118 MB)
+- **Build artifacts** (v0.9.4, 2026-06-23 — review QOL [keyboard nav / Ctrl+wheel zoom / Enter-to-Apply verify loop] + responsive multi-resolution UI; รวม donate + 0.9.3 fixes):
+  - exe: `build/windows-x64-release/src/gui/AutoSuisei.exe` (768 KB)
+  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260623-004244` (440 MB) + .zip
+  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.4.exe` (118 MB)
   - **`make_bundle.ps1` copies `models/sticker_digit.onnx` → `<bundle>/models/`** (sticker_digit.py
     resolve `<scripts-parent>/models/`); ไม่งั้น donate sticker model หายจาก bundle
 - **Docs**: `docs/AutoSuisei_User_Guide.pdf` (6 pages, Thai+English, fpdf2+Tahoma)
