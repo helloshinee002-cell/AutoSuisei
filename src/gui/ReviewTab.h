@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include <QPixmap>
 #include <QString>
 #include <QWidget>
 
@@ -9,10 +10,13 @@
 #include "ocr/ReviewModel.h"
 
 class QCheckBox;
+class QEvent;
+class QKeyEvent;
 class QLabel;
 class QLineEdit;
 class QProgressBar;
 class QPushButton;
+class QScrollArea;
 class QTableWidget;
 class QTableWidgetItem;
 
@@ -41,16 +45,21 @@ signals:
 private slots:
     void onLoadCsv();
     void onLoadFolder();
-    void onTableRowClicked(int row, int column);
     void onApplyAndNext();
     void onSave();
     void onRename();
     void onClear();
 
+protected:
+    // ↑/↓ จากในฟอร์ม (QLineEdit บรรทัดเดียวไม่กิน arrow → bubble ขึ้นมา) + Ctrl+wheel zoom
+    void keyPressEvent(QKeyEvent* event) override;
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private:
     void rebuildTable();
     void selectRow(int row);
     void loadImageForRow(int row);
+    void renderImage();
     void updateStatus();
     void setStatus(const QString& text);
 
@@ -79,7 +88,10 @@ private:
     QTableWidget* table_{};
 
     // right pane: image + form
+    QScrollArea* imageScroll_{};
     QLabel* imageView_{};
+    QPixmap fullPixmap_;       // full-res ของรูปแถวปัจจุบัน (ก่อน scale)
+    double imageZoom_{0.0};    // 0 = fit-to-pane, >0 = scale factor ของ fullPixmap_
     QLineEdit* pcEdit_{};
     QLineEdit* serialEdit_{};
     QLineEdit* batchEdit_{};
