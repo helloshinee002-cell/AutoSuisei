@@ -1,10 +1,13 @@
 #include "ReviewTab.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 
 #include <QCheckBox>
 #include <QDir>
+#include <QEvent>
+#include <QKeyEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -17,8 +20,10 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScrollArea>
 #include <QSplitter>
 #include <QTableWidget>
+#include <QWheelEvent>
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
 
@@ -124,8 +129,16 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     imageView_ = new QLabel("(no image selected)");
     imageView_->setObjectName("imageView");
     imageView_->setAlignment(Qt::AlignCenter);
-    imageView_->setMinimumSize(400, 260);
-    rlayout->addWidget(imageView_, 1);
+    imageView_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    imageScroll_ = new QScrollArea();
+    imageScroll_->setObjectName("imageScroll");
+    imageScroll_->setWidget(imageView_);
+    imageScroll_->setWidgetResizable(false);
+    imageScroll_->setAlignment(Qt::AlignCenter);
+    imageScroll_->setMinimumSize(220, 160);  // เล็กพอให้ splitter ยุบ image pane บนจอแคบ
+    // Ctrl+wheel zoom / dbl-click reset-fit / re-fit on viewport resize
+    imageScroll_->viewport()->installEventFilter(this);
+    rlayout->addWidget(imageScroll_, 1);
 
     auto* form = new QFormLayout();
     form->setSpacing(8);
@@ -189,7 +202,33 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     connect(clearBtn_, &QPushButton::clicked, this, &ReviewTab::onClear);
     connect(applyBtn_, &QPushButton::clicked, this, &ReviewTab::onApplyAndNext);
     connect(renameBtn_, &QPushButton::clicked, this, &ReviewTab::onRename);
-    connect(table_, &QTableWidget::cellClicked, this, &ReviewTab::onTableRowClicked);
+    // currentCellChanged ครอบทั้งคลิกเมาส์ + ลูกศรในตาราง (cellClicked เดิมจับแค่คลิก)
+    connect(table_, &QTableWidget::currentCellChanged, this,
+            [this](int row, int, int, int) {
+                if (row >= 0 && row != currentRow_) selectRow(row);
+            });
+
+    // ----- keyboard-driven verify loop -----
+    // Enter ในช่องใดก็ได้ = Apply + Next; Tab ข้าม read-only Batch/Date
+    batchEdit_->setFocusPolicy(Qt::NoFocus);
+    dateEdit_->setFocusPolicy(Qt::NoFocus);
+    setTabOrder(pcEdit_, serialEdit_);
+    setTabOrder(serialEdit_, notesEdit_);
+    setTabOrder(notesEdit_, verifiedCheck_);
+    setTabOrder(verifiedCheck_, applyBtn_);
+    connect(pcEdit_, &QLineEdit::returnPressed, this, &ReviewTab::onApplyAndNext);
+    connect(serialEdit_, &QLineEdit::returnPressed, this, &ReviewTab::onApplyAndNext);
+    connect(notesEdit_, &QLineEdit::returnPressed, this, &ReviewTab::onApplyAndNext);
+    // ติ๊ก/untick เอง → อัปเดต model + OK column + progress ทันที (Verified สอดคล้องสองทาง)
+    connect(verifiedCheck_, &QCheckBox::toggled, this, [this](bool on) {
+        if (currentRow_ < 0 || currentRow_ >= static_cast<int>(model_.size())) return;
+        auto r = *model_.at(static_cast<std::size_t>(currentRow_));
+        if (r.verified == on) return;
+        r.verified = on;
+        model_.setRow(static_cast<std::size_t>(currentRow_), r);
+        if (auto* it = table_->item(currentRow_, 5)) it->setText(on ? "OK" : "");
+        updateStatus();
+    });
 }
 
 void ReviewTab::setStatus(const QString& text) {
@@ -280,8 +319,6 @@ void ReviewTab::rebuildTable() {
     updateStatus();
 }
 
-void ReviewTab::onTableRowClicked(int row, int /*column*/) { selectRow(row); }
-
 void ReviewTab::selectRow(int row) {
     if (row < 0 || row >= static_cast<int>(model_.size())) {
         currentRow_ = -1;
@@ -300,7 +337,9 @@ void ReviewTab::selectRow(int row) {
         dateEdit_->clear();
     }
     notesEdit_->setText(QString::fromStdString(r.notes));
+    verifiedCheck_->blockSignals(true);  // กัน toggled handler เขียนกลับตอนโหลดแถว
     verifiedCheck_->setChecked(r.verified);
+    verifiedCheck_->blockSignals(false);
     originalLabel_->setText(
         QString("Original: pc=%1  serial=%2")
             .arg(QString::fromStdString(r.originalPcNo),
@@ -309,9 +348,15 @@ void ReviewTab::selectRow(int row) {
 }
 
 void ReviewTab::loadImageForRow(int row) {
-    if (imagesFolder_.isEmpty()) {
-        imageView_->setText("(set images folder first)");
+    imageZoom_ = 0.0;  // reset เป็น fit ทุกครั้งที่เปลี่ยนรูป
+    auto showText = [this](const QString& t) {
+        fullPixmap_ = {};
         imageView_->setPixmap({});
+        imageView_->setText(t);
+        imageView_->resize(imageScroll_->viewport()->size());
+    };
+    if (imagesFolder_.isEmpty()) {
+        showText("(set images folder first)");
         return;
     }
     const auto r = *model_.at(static_cast<std::size_t>(row));
@@ -322,12 +367,27 @@ void ReviewTab::loadImageForRow(int row) {
         const QString name = r.filename.empty()
                                  ? QStringLiteral("<empty filename>")
                                  : QString::fromStdString(r.filename);
-        imageView_->setText("(image not found:\n" + name + ")");
-        imageView_->setPixmap({});
+        showText("(image not found:\n" + name + ")");
         return;
     }
-    imageView_->setPixmap(pix.scaled(imageView_->size(), Qt::KeepAspectRatio,
-                                     Qt::SmoothTransformation));
+    fullPixmap_ = pix;
+    renderImage();
+}
+
+// fit-to-pane (imageZoom_<=0) หรือ scale ตาม imageZoom_ แล้ว resize label
+// ให้เท่าภาพ — ใหญ่กว่า viewport เมื่อไหร่ QScrollArea โชว์ scrollbar เอง
+void ReviewTab::renderImage() {
+    if (fullPixmap_.isNull()) return;
+    const QSize vp = imageScroll_->viewport()->size();
+    QSize target = (imageZoom_ <= 0.0)
+                       ? fullPixmap_.size().scaled(vp, Qt::KeepAspectRatio)
+                       : QSize(static_cast<int>(fullPixmap_.width() * imageZoom_),
+                               static_cast<int>(fullPixmap_.height() * imageZoom_));
+    if (target.isEmpty()) target = fullPixmap_.size();
+    const QPixmap scaled =
+        fullPixmap_.scaled(target, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    imageView_->setPixmap(scaled);
+    imageView_->resize(scaled.size());
 }
 
 void ReviewTab::onApplyAndNext() {
@@ -336,7 +396,7 @@ void ReviewTab::onApplyAndNext() {
     r.pcNo = pcEdit_->text().toStdString();
     r.serialNo = serialEdit_->text().toStdString();
     r.notes = notesEdit_->text().toStdString();
-    r.verified = verifiedCheck_->isChecked();
+    r.verified = true;  // Apply = verify เสมอ — loop "Next unverified" จึงเดินหน้า ไม่วนแถวเดิม
     model_.setRow(static_cast<std::size_t>(currentRow_), r);
 
     table_->item(currentRow_, 2)->setText(QString::fromStdString(r.pcNo));
@@ -347,6 +407,9 @@ void ReviewTab::onApplyAndNext() {
     auto next = model_.nextUnverified(static_cast<std::size_t>(currentRow_ + 1));
     if (!next) next = model_.nextUnverified(0);
     if (next) selectRow(static_cast<int>(*next));
+    // cursor กลับช่อง No. + select-all → พิมพ์ตัวถัดไปต่อได้เลย ไม่ต้องจับเมาส์
+    pcEdit_->setFocus();
+    pcEdit_->selectAll();
 }
 
 void ReviewTab::onSave() {
@@ -368,6 +431,7 @@ void ReviewTab::onClear() {
     model_.clear();
     sourceInfos_.clear();
     table_->setRowCount(0);
+    currentRow_ = -1;  // ตั้งก่อนเคลียร์ฟอร์ม — กัน verifiedCheck toggled handler แตะ model ที่เพิ่ง clear
     csvPath_.clear();
     csvLabel_->setText("(none)");
     // imagesFolder_ ไม่ล้าง — ถือว่า user อาจจะ load CSV ใหม่ที่ folder เดิม
@@ -378,9 +442,11 @@ void ReviewTab::onClear() {
     notesEdit_->clear();
     verifiedCheck_->setChecked(false);
     originalLabel_->setText("Original: (none)");
-    imageView_->setText("(no image selected)");
+    fullPixmap_ = {};
+    imageZoom_ = 0.0;
     imageView_->setPixmap({});
-    currentRow_ = -1;
+    imageView_->setText("(no image selected)");
+    imageView_->resize(imageScroll_->viewport()->size());
     saveBtn_->setEnabled(false);
     applyBtn_->setEnabled(false);
     renameBtn_->setEnabled(false);
@@ -486,6 +552,55 @@ void ReviewTab::onRename() {
     setStatus(QString("Rename: %1 renamed, %2 skipped, %3 failed")
                   .arg(renamed).arg(skipped).arg(failed));
     QMessageBox::information(this, "Rename done", msg);
+}
+
+void ReviewTab::keyPressEvent(QKeyEvent* event) {
+    // ↑/↓ เลื่อนแถวเมื่อ focus อยู่ในฟอร์ม (ตอน focus อยู่ในตาราง ตารางกิน arrow เอง
+    // แล้ว currentCellChanged จัดการ — จึงไม่มา reach ที่นี่ → ไม่เลื่อนซ้อน)
+    // ponytail: พึ่ง QLineEdit บรรทัดเดียวไม่ consume Up/Down → event bubble ขึ้นถึง parent นี้
+    if (model_.size() > 0 &&
+        (event->key() == Qt::Key_Up || event->key() == Qt::Key_Down)) {
+        const int next = currentRow_ + (event->key() == Qt::Key_Down ? 1 : -1);
+        if (next >= 0 && next < static_cast<int>(model_.size())) {
+            selectRow(next);
+            event->accept();
+            return;
+        }
+    }
+    QWidget::keyPressEvent(event);
+}
+
+bool ReviewTab::eventFilter(QObject* obj, QEvent* event) {
+    if (imageScroll_ && obj == imageScroll_->viewport()) {
+        switch (event->type()) {
+            case QEvent::Wheel: {
+                auto* we = static_cast<QWheelEvent*>(event);
+                if (!(we->modifiers() & Qt::ControlModifier)) return false;  // wheel เปล่า = scroll
+                if (fullPixmap_.isNull()) return true;
+                if (imageZoom_ <= 0.0) {
+                    // ออกจาก fit → เริ่มที่ ratio ปัจจุบัน เพื่อ zoom ต่อเนื่องไม่กระโดด
+                    const QSize vp = imageScroll_->viewport()->size();
+                    imageZoom_ = std::min(
+                        static_cast<double>(vp.width()) / fullPixmap_.width(),
+                        static_cast<double>(vp.height()) / fullPixmap_.height());
+                }
+                const double step = (we->angleDelta().y() > 0) ? 1.15 : (1.0 / 1.15);
+                imageZoom_ = std::clamp(imageZoom_ * step, 0.1, 8.0);
+                renderImage();
+                return true;
+            }
+            case QEvent::Resize:
+                if (imageZoom_ <= 0.0) renderImage();  // re-fit เมื่อ splitter/หน้าต่างเปลี่ยน
+                return false;
+            case QEvent::MouseButtonDblClick:
+                imageZoom_ = 0.0;  // reset เป็น fit
+                renderImage();
+                return true;
+            default:
+                break;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
 }
 
 }  // namespace autopilot::gui

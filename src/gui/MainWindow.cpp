@@ -1,6 +1,10 @@
 #include "MainWindow.h"
 
+#include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QScreen>
+#include <QScrollArea>
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QWidget>
@@ -20,6 +24,15 @@ namespace {
 constexpr int kOcrIdx = 0;
 constexpr int kWatchIdx = 1;
 constexpr int kReviewIdx = 2;
+
+// ห่อ tab ด้วย scroll area — จอเล็กกว่าขนาด natural ของ tab → scroll แทนตัด/ซ้อน (responsive ทุก resolution)
+QWidget* scrollWrap(QWidget* inner) {
+    auto* sa = new QScrollArea;
+    sa->setWidget(inner);
+    sa->setWidgetResizable(true);
+    sa->setFrameShape(QFrame::NoFrame);
+    return sa;
+}
 }  // namespace
 
 MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
@@ -33,7 +46,11 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
       macroRepo_(std::move(macroRepo)),
       ocrRepo_(std::move(ocrRepo)) {
     setWindowTitle("AutoSuisei");
-    resize(1080, 760);
+    // responsive: ไม่เปิดใหญ่เกิน work area ของจอ (กันปุ่มล่าง/status bar หลุดจอบน 1366×768 / high-DPI)
+    setMinimumSize(760, 520);
+    const QRect avail = QGuiApplication::primaryScreen()->availableGeometry();
+    resize(qMin(1180, static_cast<int>(avail.width() * 0.92)),
+           qMin(820, static_cast<int>(avail.height() * 0.92)));
 
     auto* root = new QWidget();
     root->setObjectName("centralRoot");
@@ -47,9 +64,9 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
     auto* ocrTab = new OcrTab(*ocrRepo_);
     auto* watchTab = new WatchTab();
     auto* reviewTab = new ReviewTab();
-    stack->insertWidget(kOcrIdx, ocrTab);
-    stack->insertWidget(kWatchIdx, watchTab);
-    stack->insertWidget(kReviewIdx, reviewTab);
+    stack->insertWidget(kOcrIdx, scrollWrap(ocrTab));
+    stack->insertWidget(kWatchIdx, scrollWrap(watchTab));
+    stack->insertWidget(kReviewIdx, scrollWrap(reviewTab));
 
     sidebar->addItem("OCR", "OCR Single", "Bulk extract images");
     sidebar->addItem("WCH", "Folder Watch", "Auto folder watcher");
