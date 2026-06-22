@@ -26,7 +26,7 @@ namespace autopilot::gui {
 
 namespace {
 
-constexpr int kCountColumns = 7;  // #, File, No., Serial, Org, Date, OK
+constexpr int kCountColumns = 6;  // #, File, No., Serial, Date, OK
 
 QTableWidgetItem* makeItem(const QString& text) {
     auto* item = new QTableWidgetItem(text);
@@ -103,7 +103,7 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
 
     table_ = new QTableWidget(0, kCountColumns);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Org / สถานที่", "Date", "OK"});
+        {"#", "File", "No.", "Serial", "Date", "OK"});
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->setSelectionMode(QAbstractItemView::SingleSelection);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -113,9 +113,8 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(0, 50);
     table_->setColumnWidth(2, 80);
     table_->setColumnWidth(3, 140);
-    table_->setColumnWidth(4, 160);
-    table_->setColumnWidth(5, 100);
-    table_->setColumnWidth(6, 44);
+    table_->setColumnWidth(4, 100);
+    table_->setColumnWidth(5, 44);
     split->addWidget(table_);
 
     auto* right = new QWidget(this);
@@ -134,8 +133,6 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     pcEdit_ = new QLineEdit();
     serialEdit_ = new QLineEdit();
-    orgEdit_ = new QLineEdit();
-    orgEdit_->setToolTip("ชื่อโรงเรียน/สถานที่ (จาก Tesseract tha) — แก้ให้ถูกได้");
     batchEdit_ = new QLineEdit();
     batchEdit_->setReadOnly(true);
     batchEdit_->setToolTip("Batch ID (จาก OCR) — read only");
@@ -148,7 +145,6 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     originalLabel_->setObjectName("originalLabel");
     form->addRow("No.:", pcEdit_);
     form->addRow("Serial:", serialEdit_);
-    form->addRow("Org/สถานที่:", orgEdit_);
     form->addRow("Batch:", batchEdit_);
     form->addRow("Date:", dateEdit_);
     form->addRow("Notes:", notesEdit_);
@@ -210,13 +206,14 @@ void ReviewTab::loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
     auto tempCsv = fs::temp_directory_path() / "autopilot_ocr_to_review.csv";
     {
         std::ofstream out(tempCsv, std::ios::trunc);
-        out << "filename,pc_no,serial_no,org_name\n";
+        out << "filename,pc_no,serial_no\n";
         for (const auto& info : infos) {
-            const auto base = fs::path(info.filename).filename().string();
+            // info.filename เป็น basename จาก Python อยู่แล้ว — เลี่ยง fs::path(narrow) round-trip ที่ทำ
+            // ANSI corruption บนชื่อไทย
+            const std::string& base = info.filename;
             out << ocr::ReviewModel::escapeCsv(base) << ','
                 << ocr::ReviewModel::escapeCsv(info.pcNo) << ','
-                << ocr::ReviewModel::escapeCsv(info.serialNo) << ','
-                << ocr::ReviewModel::escapeCsv(info.orgName) << '\n';
+                << ocr::ReviewModel::escapeCsv(info.serialNo) << '\n';
         }
     }
     if (!model_.loadCsv(tempCsv.string())) {
@@ -280,9 +277,8 @@ void ReviewTab::rebuildTable() {
         table_->setItem(r, 1, makeItem(QString::fromStdString(row.filename)));
         table_->setItem(r, 2, makeItem(QString::fromStdString(row.pcNo)));
         table_->setItem(r, 3, makeItem(QString::fromStdString(row.serialNo)));
-        table_->setItem(r, 4, makeItem(QString::fromStdString(row.orgName)));
-        table_->setItem(r, 5, makeItem(dateStr));
-        table_->setItem(r, 6, makeItem(row.verified ? "OK" : ""));
+        table_->setItem(r, 4, makeItem(dateStr));
+        table_->setItem(r, 5, makeItem(row.verified ? "OK" : ""));
     }
     updateStatus();
 }
@@ -299,7 +295,6 @@ void ReviewTab::selectRow(int row) {
     const auto r = *model_.at(static_cast<std::size_t>(row));
     pcEdit_->setText(QString::fromStdString(r.pcNo));
     serialEdit_->setText(QString::fromStdString(r.serialNo));
-    orgEdit_->setText(QString::fromStdString(r.orgName));
     if (static_cast<std::size_t>(row) < sourceInfos_.size()) {
         batchEdit_->setText(QString::fromStdString(sourceInfos_[row].batchId));
         dateEdit_->setText(QString::fromStdString(sourceInfos_[row].photoDate));
@@ -343,15 +338,13 @@ void ReviewTab::onApplyAndNext() {
     auto r = *model_.at(static_cast<std::size_t>(currentRow_));
     r.pcNo = pcEdit_->text().toStdString();
     r.serialNo = serialEdit_->text().toStdString();
-    r.orgName = orgEdit_->text().toStdString();
     r.notes = notesEdit_->text().toStdString();
     r.verified = verifiedCheck_->isChecked();
     model_.setRow(static_cast<std::size_t>(currentRow_), r);
 
     table_->item(currentRow_, 2)->setText(QString::fromStdString(r.pcNo));
     table_->item(currentRow_, 3)->setText(QString::fromStdString(r.serialNo));
-    table_->item(currentRow_, 4)->setText(QString::fromStdString(r.orgName));
-    table_->item(currentRow_, 6)->setText(r.verified ? "OK" : "");
+    table_->item(currentRow_, 5)->setText(r.verified ? "OK" : "");
     updateStatus();
 
     auto next = model_.nextUnverified(static_cast<std::size_t>(currentRow_ + 1));
@@ -383,7 +376,6 @@ void ReviewTab::onClear() {
     // imagesFolder_ ไม่ล้าง — ถือว่า user อาจจะ load CSV ใหม่ที่ folder เดิม
     pcEdit_->clear();
     serialEdit_->clear();
-    orgEdit_->clear();
     batchEdit_->clear();
     dateEdit_->clear();
     notesEdit_->clear();
@@ -475,7 +467,9 @@ void ReviewTab::onRename() {
             if (suffix > 999) break;
         }
         try {
-            fs::rename(oldPath.toStdString(), newPath.toStdString());
+            // u8path: toStdString() เป็น UTF-8 — fs::rename(narrow) ตีเป็น ANSI → path ไทยหาไม่เจอ
+            fs::rename(fs::u8path(oldPath.toStdString()),
+                       fs::u8path(newPath.toStdString()));
             r.filename = newName.toStdString();
             model_.setRow(i, r);
             if (auto* item = table_->item(static_cast<int>(i), 1)) {

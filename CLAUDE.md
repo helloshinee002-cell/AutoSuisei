@@ -125,11 +125,11 @@ docs/          dev-plan.md (phase-by-phase log)
   - **Monitor** (754 Dell): No. **98.8%** / Serial **94.7%**
   - **Monitor 2** (300 มีภาพหมุน): No. **96.0%** / Serial **96.3%**
   - **Accessory** (418 Olivetti/Verifone/Feitian): No. **66.3%** / Serial **83.3%**
-- **Build artifacts** (rebuilt 2026-06-21 w/ donate: Org column + DonateMore parser + sticker model):
+- **Build artifacts** (v0.9.3, 2026-06-22 — donate = No.+Serial, ลบ Org/ไทย; **แก้ Unicode-path** Rename/Save CSV):
   - exe: `build/windows-x64-release/src/gui/AutoSuisei.exe` (780 KB)
-  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260621-213838` (440 MB) + .zip (173 MB)
-  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe` (118 MB)
-  - **`make_bundle.ps1` now copies `models/sticker_digit.onnx` → `<bundle>/models/`** (sticker_digit.py
+  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260622-194028` (440 MB) + .zip (173 MB)
+  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.3.exe` (118 MB)
+  - **`make_bundle.ps1` copies `models/sticker_digit.onnx` → `<bundle>/models/`** (sticker_digit.py
     resolve `<scripts-parent>/models/`); ไม่งั้น donate sticker model หายจาก bundle
 - **Docs**: `docs/AutoSuisei_User_Guide.pdf` (6 pages, Thai+English, fpdf2+Tahoma)
 - **Remote**: ตั้ง `origin = https://github.com/helloshinee002-cell/AutoSuisei.git` แล้ว
@@ -201,6 +201,25 @@ Phases:
 ข้าม model+Thai-Tesseract (เร็ว 5x). ผล `build/donatemore.csv`: No. **99.6% / 100% (15/15 sample)**, Serial 84%.
 ไม่ regress Photos-3-001 (explicit คืน '' บนสติกเกอร์ไทย). **บทเรียน: ดู raw OCR ก่อน — typed text แก้ด้วย regex
 ไม่ใช่ retrain** (retrain จำเป็นเฉพาะสติกเกอร์เขียนมือไทย Photos-3-001). gt: `build/donatemore_gt_sample.csv`
+
+## Session 2026-06-22 — ลบ "org/ไทย" ออกทั้งหมด → donate = No. + Serial (v0.9.2)
+user ลองใช้ 0.9.1 แล้วพบ Tesseract `tha` อ่านชื่อโรงเรียนลายมือ **มั่ว** → "เอาตัวอ่านภาษาไทยออกไปเลย".
+**ลบจริง** (ไม่ใช่ซ่อน): Python `ocr_thai`/`extract_org_name`/`_clean_org_line`/`_THAI_RE`/`_ORG_MARKERS`
++ org จาก output (CSV/JSON/counter/summary) ใน `bulk_extract.py`+`ocr_worker.py`; `donate_fields_from_crop`
+คืน **เลขอย่างเดียว** (str). C++ ลบ `orgName` field + คอลัมน์ "Org / สถานที่" + `orgEdit_` form + CSV org_name
+ใน OcrTab/ReviewTab/ReviewModel/AssetExtractor (re-index คอลัมน์หลัง 4). **เก็บ** ตัว anchor เลข
+(`locate_sticker_bbox`/`donate_fields_from_crop` ใช้ Tesseract หา *ตำแหน่ง*เลข — output เลขล้วน ไม่โชว์ไทย)
+→ No. ยัง ~78%. ctest 106/106 ✓. rebuild → AutoSuisei-Setup-**0.9.2**.exe
+
+### v0.9.3 — แก้ Unicode-path: Rename + Save CSV พังบนโฟลเดอร์ชื่อไทย
+user จัดรูปลงโฟลเดอร์ไทย (`ภาพ Donate/โรงเรียนวัดหนองคู/`) → กด Rename/Save CSV **ไม่ได้** ("cannot find
+path"/"เขียน CSV ไม่ได้"). **บั๊กเดิม ไม่เกี่ยว org**: `ReviewModel` load/save + `ReviewTab` rename ส่ง
+`std::string` UTF-8 (`QString::toStdString()`) เข้า `ifstream`/`ofstream`/`fs::rename` ตรงๆ → **MSVC ตี narrow
+เป็น ANSI** → ไทยเพี้ยน. แก้ด้วย **`std::filesystem::u8path()`** (idiom เดิมที่ AssetExtractor/OcrEngine/
+ImageMatcher ใช้อยู่ — 3 จุดนี้ลืม) + regression test `test_review_model.cpp` (save/load CSV path ไทย).
+ctest **107/107** ✓. → AutoSuisei-Setup-**0.9.3**.exe
+- **⚠️ STRICT RULE ใหม่**: path จาก QString/UTF-8 → ต้อง `std::filesystem::u8path(s)` ก่อนเข้า
+  `std::filesystem`/`fstream` เสมอ (MSVC narrow std::string = ANSI ไม่ใช่ UTF-8 → path ไทย/ยูนิโค้ดพัง)
 
 Key learnings (เพิ่ม):
 - **Rotation fallback** ใช้ cv2.rotate ก่อน OCR — ช่วย Serial 53% → 96% บน batch ที่มีภาพหมุน

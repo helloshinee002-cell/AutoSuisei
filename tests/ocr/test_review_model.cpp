@@ -242,3 +242,33 @@ TEST(ReviewModel, LoadCsv_WithVerifiedAndNotesColumns) {
     EXPECT_TRUE(r.verified);
     EXPECT_EQ(r.notes, "sticker says 316");
 }
+
+// =================== Unicode path (regression 2026-06-22) ===================
+
+TEST(ReviewModel, SaveAndLoad_ThaiPath_RoundTrips) {
+    // ก่อนแก้: ofstream/ifstream(narrow std::string) → MSVC ตีเป็น ANSI codepage → path/โฟลเดอร์
+    // ภาษาไทยเปิด/เขียนไม่ได้ (user เจอตอน Rename/Save ในโฟลเดอร์ "ภาพ Donate/โรงเรียน...").
+    // saveCsv/loadCsv ต้อง u8path เพื่อให้ path UTF-8 ถูกตีความถูก.
+    const fs::path dir = fs::temp_directory_path() / fs::u8path("autopilot_ไทย_donate");
+    fs::create_directories(dir);
+    const fs::path p = dir / fs::u8path("ground_truth_วัดหนองคู.csv");
+    const auto u8 = p.u8string();
+    const std::string utf8Path(u8.begin(), u8.end());
+
+    ReviewModel a;
+    {
+        const auto seed = writeTempCsv(
+            "filename,pc_no,serial_no\nimg.jpg,42,6ABCDE2\n");
+        ASSERT_TRUE(a.loadCsv(seed.string()));
+    }
+    ASSERT_TRUE(a.saveCsv(utf8Path)) << "saveCsv must write a Thai path";
+    ASSERT_TRUE(fs::exists(p)) << "file must actually exist at the Thai path";
+
+    ReviewModel b;
+    ASSERT_TRUE(b.loadCsv(utf8Path)) << "loadCsv must open a Thai path";
+    ASSERT_EQ(b.size(), 1u);
+    EXPECT_EQ(b.at(0)->pcNo, "42");
+
+    std::error_code ec;
+    fs::remove_all(dir, ec);  // best-effort cleanup
+}

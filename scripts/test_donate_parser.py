@@ -13,10 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from bulk_extract import (  # noqa: E402
-    _clean_org_line,
     _trailing_sticker_no,
     extract_no_donate_explicit,
-    extract_org_name,
     extract_pc_no,
     extract_pc_no_donate,
     extract_serial,
@@ -32,22 +30,6 @@ def _box(cx):
 
 
 def main() -> int:
-    # --- extract_org_name: screen (Notepad) — school line with leading "ee" noise ---
-    screen = "SerialNumber\n7CY0DK2\nee            รร.วดบานคลวย\nNo.20\n"
-    got = extract_org_name(screen)
-    assert got.startswith("รร."), got
-    assert "No" not in got, got  # must not bleed the "No.20" line in
-
-    # --- extract_org_name: sticker — marker embedded in noisy line ---
-    sticker = "โรงเรียนบาน เรรบ แพพ 15962266850\nSERVICE TAG(S/N): 7C33DK2\n"
-    assert extract_org_name(sticker).startswith("โรงเรียน"), extract_org_name(sticker)
-
-    # --- no Thai at all → empty ---
-    assert extract_org_name("SerialNumber\n7CY0DK2\nNo.20\n") == ""
-
-    # --- _clean_org_line trims leading latin noise ---
-    assert _clean_org_line("ee   รร.วดบานคลวย") == "รร.วดบานคลวย"
-
     # --- donate serial reuses the pc Dell Service Tag parser ---
     assert extract_serial("SERVICE TAG(S/N): 7C33DK2", "donate") == "7C33DK2"
     assert extract_serial("SerialNumber\n7CY0DK2", "donate") == "7CY0DK2"

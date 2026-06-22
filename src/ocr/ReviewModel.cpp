@@ -1,6 +1,7 @@
 #include "ReviewModel.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
@@ -99,7 +100,8 @@ std::vector<std::string> ReviewModel::parseCsvLine(const std::string& line) {
 }
 
 bool ReviewModel::loadCsv(const std::string& path) {
-    std::ifstream in(path);
+    // u8path: path เป็น UTF-8 — MSVC ifstream(narrow) ตีเป็น ANSI → path ไทยเปิดไม่ได้
+    std::ifstream in(std::filesystem::u8path(path));
     if (!in.is_open()) return false;
 
     std::string line;
@@ -123,7 +125,6 @@ bool ReviewModel::loadCsv(const std::string& path) {
         r.filename = fieldAt(fields, header, "filename");
         r.pcNo = fieldAt(fields, header, "pc_no");
         r.serialNo = fieldAt(fields, header, "serial_no");
-        r.orgName = fieldAt(fields, header, "org_name");
 
         // resume case: original_* columns ที่เคย save ออกมา
         auto orig = fieldAt(fields, header, "original_pc_no");
@@ -139,15 +140,15 @@ bool ReviewModel::loadCsv(const std::string& path) {
 }
 
 bool ReviewModel::saveCsv(const std::string& path) const {
-    std::ofstream out(path, std::ios::trunc);
+    // u8path: path เป็น UTF-8 — MSVC ofstream(narrow) ตีเป็น ANSI → path ไทยเขียนไม่ได้
+    std::ofstream out(std::filesystem::u8path(path), std::ios::trunc);
     if (!out.is_open()) return false;
 
-    out << "filename,pc_no,serial_no,org_name,original_pc_no,original_serial_no,verified,notes\n";
+    out << "filename,pc_no,serial_no,original_pc_no,original_serial_no,verified,notes\n";
     for (const auto& r : rows_) {
         out << escapeCsv(r.filename) << ','
             << escapeCsv(r.pcNo) << ','
             << escapeCsv(r.serialNo) << ','
-            << escapeCsv(r.orgName) << ','
             << escapeCsv(r.originalPcNo) << ','
             << escapeCsv(r.originalSerialNo) << ','
             << (r.verified ? "true" : "false") << ','

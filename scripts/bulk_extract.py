@@ -10,11 +10,11 @@ Categories:
     pc        (default) Dell Service Tag 7-char parser (PC&Laptop)
     monitor   Dell S/N full format `CN-XXXXX-XXXXX-XXX-XXXX(-A00)?` (Dell monitor)
     accessory Flexible — S/N label, numeric-with-dashes, or 8-15 digit line
-    donate    No. + Dell Service Tag (reuses pc parser) + Thai org/place name
-              (school) read via a second Tesseract `tha` pass → org_name column
+    donate    Running no. (สติกเกอร์ / Notepad "NO.x") + Dell Service Tag / wmic S/N
+              (org/place-name reader removed 2026-06-21 — Thai handwriting OCR'd garbage)
 
 Outputs CSV with columns:
-    photo_index,filename,pc_no,serial_no,org_name,batch_id,photo_date,pc_range,
+    photo_index,filename,pc_no,serial_no,batch_id,photo_date,pc_range,
     mean_confidence,line_count,warnings
 """
 import csv
@@ -258,77 +258,11 @@ def extract_serial(text: str, category: str) -> str:
     return extract_serial_pc(text)
 
 
-# ---------- Donate: Thai org/place name (second OCR pass via Tesseract) ----------
-# RapidOCR's default model is Chinese+English and cannot read Thai, so the donate
-# category runs a separate Tesseract `tha` pass just for the org/place name.
-
-# Thai Unicode block U+0E00–U+0E7F
-_THAI_RE = re.compile(r"[฀-๿]")
-# School / place markers — tolerates partial OCR (e.g. "เรียน" when "โรงเรียน" drops chars)
-_ORG_MARKERS = ("โรงเรียน", "รร.", "รร", "เรียน")
-
-
-def ocr_thai(img_path) -> str:
-    """OCR Thai text via Tesseract (`-l tha+eng --psm 6`). Returns raw text ('' on failure).
-
-    Tesseract on Windows can't open unicode/space paths (same trap as cv::imread),
-    so copy to an ASCII temp file first. ponytail: runs on the upright image —
-    donate photos are screen/sticker shots; if rotated donate photos appear, feed
-    the angle ocr_with_rotation picked.
-    """
-    src = Path(img_path)
-    tmp = ""
-    try:
-        fd, tmp = tempfile.mkstemp(suffix=(src.suffix or ".png"), prefix="donate_tha_")
-        os.close(fd)
-        shutil.copyfile(src, tmp)
-        proc = subprocess.run(
-            ["tesseract", tmp, "stdout", "-l", "tha+eng", "--psm", "6"],
-            capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=60,
-        )
-        return proc.stdout or ""
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return ""
-    finally:
-        if tmp and os.path.exists(tmp):
-            try:
-                os.remove(tmp)
-            except OSError:
-                pass
-
-
-def _clean_org_line(line: str) -> str:
-    """Trim leading non-Thai OCR noise: 'ee   รร.วดบานคลวย' → 'รร.วดบานคลวย'."""
-    s = line.strip()
-    for mark in _ORG_MARKERS:
-        idx = s.find(mark)
-        if idx != -1:  # found (incl. idx 0 = line already starts with the name)
-            return s[idx:].strip()
-    m = _THAI_RE.search(s)
-    return s[m.start():].strip() if m else s
-
-
-def extract_org_name(text: str) -> str:
-    """Pick the school / place name from Tesseract output.
-
-    Heuristic: among lines with >=2 Thai chars, prefer one with a school marker
-    (โรงเรียน/รร./เรียน); else the line with the most Thai chars.
-    ponytail: best-effort single line — sticker photos read poorly and multi-line
-    names get truncated; the Review tab is where a human fixes it. Upgrade path:
-    crop to the label region + preprocess before OCR.
-    """
-    thai_lines = [
-        ln.strip() for ln in text.splitlines()
-        if len(_THAI_RE.findall(ln)) >= 2
-    ]
-    if not thai_lines:
-        return ""
-    for ln in thai_lines:
-        if any(mark in ln for mark in _ORG_MARKERS):
-            return _clean_org_line(ln)
-    best = max(thai_lines, key=lambda s: len(_THAI_RE.findall(s)))
-    return _clean_org_line(best)
+# ---------- Donate: org-name (Thai) reader REMOVED 2026-06-21 ----------
+# user: "เอาตัวอ่านภาษาไทยออกไปเลย" — Tesseract `tha` อ่านชื่อโรงเรียนลายมือมั่ว.
+# donate เหลือ No. (เลขสติกเกอร์) + Serial เท่านั้น. ตัว anchor เลข (locate_sticker_bbox /
+# donate_fields_from_crop / _trailing_sticker_no / _THAI_LETTER_RE) ยังอยู่ — ใช้หา *ตัวเลข*
+# ไม่ได้ output ตัวหนังสือไทย.
 
 
 # เลขสติกเกอร์ = เลขรันต่อโรงเรียน (1/2/4/8/16…) อยู่ช่วง 1-99 → จับ 1-2 หลักที่ไม่ติดเลขอื่น.
@@ -590,25 +524,26 @@ def _trailing_sticker_no(text: str) -> str:
 
 
 def donate_fields_from_crop(img_path):
-    """text-anchored: crop สติกเกอร์ (ยึดข้อความไทย) → re-OCR (psm 6) → คืน (no, org_name).
+    """text-anchored: crop สติกเกอร์ (ยึดข้อความไทยเพื่อหา *ตำแหน่ง*) → re-OCR (psm 6) → คืน **เลข** (str).
 
-    คืน ('','') ถ้าหา Thai anchor ไม่ได้ — *ตั้งใจ* ให้ caller fallback ไป RapidOCR position-aware
+    อ่านแค่เลขสติกเกอร์ — ไม่อ่านชื่อไทยแล้ว (org reader ถูกลบ 2026-06-21). Thai anchor ยังจำเป็น
+    เพื่อ locate ป้าย. คืน '' ถ้าหา anchor ไม่ได้ — *ตั้งใจ* ให้ caller fallback ไป RapidOCR position-aware
     (พิสูจน์แล้วว่าแม่นกว่าการเดาจาก left-region crop ที่กว้าง/noisy). single-PSM กัน false-positive
     (multi-PSM vote ทดลองแล้วหยิบ garbage จาก psm 4/11 — precision แย่ลง).
     """
     import cv2
     im = _imread_unicode(img_path)
     if im is None:
-        return "", ""
+        return ""
     H, W = im.shape[:2]
     bbox = locate_sticker_bbox(img_path, W)
     if not bbox:
-        return "", ""
+        return ""
     x0, y0, x1, y1 = bbox
     pw, ph = int((x1 - x0) * 0.45), int((y1 - y0) * 0.7)
     crop = im[max(0, y0 - ph):min(H, y1 + ph), max(0, x0 - pw):min(W, x1 + pw)]
     if crop.size == 0:
-        return "", ""
+        return ""
     crop = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
     tmp = ""
     try:
@@ -621,14 +556,14 @@ def donate_fields_from_crop(img_path):
             errors="replace", timeout=60,
         ).stdout
     except (OSError, subprocess.SubprocessError):
-        return "", ""
+        return ""
     finally:
         if tmp and os.path.exists(tmp):
             try:
                 os.remove(tmp)
             except OSError:
                 pass
-    return _trailing_sticker_no(txt), extract_org_name(txt)
+    return _trailing_sticker_no(txt)
 
 
 def parse_filename(name: str) -> dict:
@@ -760,11 +695,10 @@ def main() -> int:
 
     with_pc = 0
     with_sn = 0
-    with_org = 0
     with out_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
-            "photo_index", "filename", "pc_no", "serial_no", "org_name",
+            "photo_index", "filename", "pc_no", "serial_no",
             "batch_id", "photo_date", "pc_range",
             "mean_confidence", "line_count", "warnings",
         ])
@@ -790,43 +724,35 @@ def main() -> int:
             serial = extract_serial(joined, category)
             if category == "donate":
                 # DonateMore: เลข typed/printed (Notepad "NO.x" / สติกเกอร์ "Donate n") OCR อ่านครบ
-                # → ใช้เลย + ข้าม model/Thai-Tesseract (เร็ว ~3-4x, DonateMore ไม่มี org ไทย).
-                # ถ้าไม่เจอ = สติกเกอร์เขียนมือไทย (Photos-3-001) → fusion model+crop + org ไทย
+                # → ใช้เลย + ข้าม model/Tesseract (เร็ว ~3-4x). ถ้าไม่เจอ = สติกเกอร์เขียนมือไทย
+                # (Photos-3-001) → fusion model + crop. (อ่านชื่อไทยถูกลบ — donate = No. + Serial)
                 explicit = extract_no_donate_explicit(joined, meta["pc_range"])
                 if explicit:
                     pc_no = explicit
-                    org_name = ""
                 else:
                     # lazy import: model path ใช้ onnxruntime/cv2 เฉพาะ embedded python
                     from sticker_digit import read_sticker_number_path
                     model_no = read_sticker_number_path(str(img))
-                    crop_no, crop_org = donate_fields_from_crop(img)
+                    crop_no = donate_fields_from_crop(img)
                     # crop-side รวมทุกสัญญาณ OCR ก่อน fuse (เลข 2 หลักมักมาจาก fallback พวกนี้)
                     crop_side = (crop_no or sticker_no_from_boxes(raw)
                                  or extract_pc_no_donate(joined))
                     pc_no = fuse_sticker_no(model_no, crop_side)
-                    org_name = crop_org or extract_org_name(ocr_thai(img))
             else:
                 pc_no = extract_pc_no(joined, meta["pc_range"])
-                org_name = ""
 
             warnings_list = []
             if not pc_no:
                 warnings_list.append("No. not found")
             if not serial:
                 warnings_list.append("Serial not found")
-            if category == "donate" and not org_name:
-                warnings_list.append("Org name not found")
-
             if pc_no:
                 with_pc += 1
             if serial:
                 with_sn += 1
-            if org_name:
-                with_org += 1
 
             writer.writerow([
-                meta["photo_index"], img.name, pc_no, serial, org_name,
+                meta["photo_index"], img.name, pc_no, serial,
                 meta["batch_id"], meta["photo_date"], meta["pc_range"],
                 f"{mean_conf:.3f}", line_count, "; ".join(warnings_list),
             ])
@@ -840,14 +766,12 @@ def main() -> int:
                     "filename": img.name,
                     "pc_no": pc_no,
                     "serial_no": serial,
-                    "org_name": org_name,
                     "batch_id": meta["batch_id"],
                     "photo_date": meta["photo_date"],
                     "pc_range": meta["pc_range"],
                     "mean_confidence": mean_conf,
                     "with_pc": with_pc,
                     "with_sn": with_sn,
-                    "with_org": with_org,
                 }), flush=True)
 
             if i % 10 == 0:
@@ -867,7 +791,6 @@ def main() -> int:
             "total": len(images),
             "with_pc": with_pc,
             "with_sn": with_sn,
-            "with_org": with_org,
             "elapsed_sec": elapsed,
             "category": category,
         }), flush=True)
@@ -876,9 +799,6 @@ def main() -> int:
           f"({elapsed/len(images):.1f}s/photo)", file=sys.stderr)
     print(f"No. hit:  {with_pc:3d}/{len(images)} ({pc_rate:.1f}%)", file=sys.stderr)
     print(f"Serial hit:  {with_sn:3d}/{len(images)} ({sn_rate:.1f}%)", file=sys.stderr)
-    if category == "donate":
-        org_rate = 100 * with_org / len(images) if images else 0
-        print(f"Org hit:  {with_org:3d}/{len(images)} ({org_rate:.1f}%)", file=sys.stderr)
     print(f"CSV: {out_csv}", file=sys.stderr)
     return 0
 

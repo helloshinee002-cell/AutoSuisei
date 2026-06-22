@@ -82,7 +82,6 @@ private:
     QLabel* imageView_{};
     QLineEdit* pcEdit_{};
     QLineEdit* serialEdit_{};
-    QLineEdit* orgEdit_{};
     QLineEdit* batchEdit_{};
     QLineEdit* dateEdit_{};
     QLineEdit* notesEdit_{};

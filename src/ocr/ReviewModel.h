@@ -17,7 +17,6 @@ struct ReviewRow {
     std::string filename;
     std::string pcNo;
     std::string serialNo;
-    std::string orgName;          ///< donate: ชื่อโรงเรียน/สถานที่ (Thai)
     std::string originalPcNo;     ///< ค่าเดิมจาก OCR — ห้ามแก้
     std::string originalSerialNo; ///< ค่าเดิมจาก OCR — ห้ามแก้
     std::string notes;
@@ -41,7 +40,7 @@ public:
     [[nodiscard]] bool loadCsv(const std::string& path);
 
     /** บันทึก rows ทั้งหมดเป็น CSV ใหม่ — header:
-     *  filename,pc_no,serial_no,org_name,original_pc_no,original_serial_no,verified,notes
+     *  filename,pc_no,serial_no,original_pc_no,original_serial_no,verified,notes
      *  คืน true ถ้าเขียนสำเร็จ */
     [[nodiscard]] bool saveCsv(const std::string& path) const;
 

@@ -29,14 +29,12 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 from bulk_extract import (  # noqa: E402
     donate_fields_from_crop,
-    extract_org_name,
     extract_no_donate_explicit,
     extract_pc_no,
     extract_pc_no_donate,
     extract_serial,
     fuse_sticker_no,
     ocr_donate,
-    ocr_thai,
     ocr_with_rotation,
     parse_filename,
     sticker_no_from_boxes,
@@ -100,23 +98,20 @@ def main() -> int:
         meta = parse_filename(img.name)
         serial = extract_serial(joined, category)
         if category == "donate":
-            # DonateMore: เลข typed/printed (Notepad/Donate sticker) → ใช้เลย + ข้าม model/Thai (เร็ว);
-            # ไม่เจอ = สติกเกอร์เขียนมือไทย (Photos-3-001) → fusion model+crop + org ไทย
+            # DonateMore: เลข typed/printed (Notepad/Donate sticker) → ใช้เลย + ข้าม model/Tesseract (เร็ว);
+            # ไม่เจอ = สติกเกอร์เขียนมือไทย (Photos-3-001) → fusion model+crop. (อ่านชื่อไทยถูกลบ — No.+Serial)
             explicit = extract_no_donate_explicit(joined, meta["pc_range"])
             if explicit:
                 pc_no = explicit
-                org_name = ""
             else:
                 from sticker_digit import read_sticker_number_path
                 model_no = read_sticker_number_path(str(img))
-                crop_no, crop_org = donate_fields_from_crop(img)
+                crop_no = donate_fields_from_crop(img)
                 crop_side = (crop_no or sticker_no_from_boxes(raw)
                              or extract_pc_no_donate(joined))
                 pc_no = fuse_sticker_no(model_no, crop_side)
-                org_name = crop_org or extract_org_name(ocr_thai(img))
         else:
             pc_no = extract_pc_no(joined, meta["pc_range"])
-            org_name = ""
 
         emit({
             "event": "result",
@@ -125,7 +120,6 @@ def main() -> int:
             "photo_index": meta["photo_index"],
             "pc_no": pc_no,
             "serial_no": serial,
-            "org_name": org_name,
             "batch_id": meta["batch_id"],
             "photo_date": meta["photo_date"],
             "pc_range": meta["pc_range"],

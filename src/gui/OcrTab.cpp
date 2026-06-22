@@ -135,17 +135,16 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
 
 void OcrTab::rebuildHeaders() {
     table_->setRowCount(0);
-    table_->setColumnCount(7);
+    table_->setColumnCount(6);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Org / สถานที่", "Batch", "Date"});
+        {"#", "File", "No.", "Serial", "Batch", "Date"});
     table_->horizontalHeader()->setStretchLastSection(false);
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     table_->setColumnWidth(0, 50);
     table_->setColumnWidth(2, 110);
     table_->setColumnWidth(3, 200);
-    table_->setColumnWidth(4, 180);
-    table_->setColumnWidth(5, 90);
-    table_->setColumnWidth(6, 110);
+    table_->setColumnWidth(4, 90);
+    table_->setColumnWidth(5, 110);
 }
 
 void OcrTab::setStatus(const QString& text) {
@@ -266,7 +265,6 @@ void OcrTab::onBulkStdout() {
                 info.filename = j.value("filename", "");
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
-                info.orgName = j.value("org_name", "");
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
                 info.photoIndex = j.value("photo_index", 0);
@@ -336,9 +334,8 @@ void OcrTab::addAssetRow(const ocr::AssetInfo& info) {
                     std::filesystem::path(info.filename).filename().string())));
     table_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(info.pcNo)));
     table_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(info.serialNo)));
-    table_->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(info.orgName)));
-    table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.batchId)));
-    table_->setItem(row, 6, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
+    table_->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(info.batchId)));
+    table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
 }
 
 void OcrTab::onClear() {
