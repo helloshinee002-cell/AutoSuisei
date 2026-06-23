@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, build, release]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # Build & Distribution
@@ -32,7 +32,7 @@ cmake --build --preset windows-x64-release --target AutoSuisei
 
 ## Test (debug only — tests link debug deps)
 ```powershell
-ctest --preset windows-x64-debug --output-on-failure              # ทั้งหมด (106 tests)
+ctest --preset windows-x64-debug --output-on-failure              # ทั้งหมด (107 tests)
 ctest --preset windows-x64-debug -R "AssetExtractor.*" --output-on-failure   # ชุดเดียว
 ```
 
@@ -45,17 +45,22 @@ clang-tidy -p build/windows-x64-debug src/**/*.cpp
 ## Installer & Bundle (end-user distribution)
 - **Installer**: Inno Setup wizard — bundle embedded Python + `rapidocr` + suisei icon,
   ฝัง MSVC v143 CRT (แก้ `0xc0000142`), mirror CRT เข้า `python/` ให้ onnxruntime โหลด DLL ได้
-- สคริปต์: `scripts/make_installer.ps1`, `scripts/make_bundle.ps1`, `scripts/setup_embedded_python.ps1`
+- สคริปต์: `scripts/make_installer.ps1` (re-run bundle + iscc), `scripts/make_bundle.ps1`, `scripts/setup_embedded_python.ps1`
+- **`make_bundle.ps1` copies**: `scripts/*.py` + **`models/sticker_digit.onnx`** + embedded python + Qt/vcpkg/MSVC DLLs
+  (ถ้าลืม copy `models/` → donate sticker model หาย, fusion ตกเหลือ crop-only)
 - embedded Python = **3.11.9** (`build/embedded-python/`, `python-embed-3.11.9.zip`)
-  — แยกจาก Python ที่ใช้ตอน dev
+  — แยกจาก Python ที่ใช้ตอน dev; `python._pth` ไม่ auto-add script dir → script ใช้ `sys.path.insert` ([[Conventions]])
 
-## Artifacts (v0.9.0, 2026-05-18)
+## Artifacts (v0.9.4, 2026-06-23)
 | | path | size |
 |---|---|---|
-| exe | `build/windows-x64-release/src/gui/AutoSuisei.exe` | ~776 KB |
-| portable bundle | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260518-201724` | 428 MB |
-| installer | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe` | 108 MB |
+| exe | `build/windows-x64-release/src/gui/AutoSuisei.exe` | ~768 KB |
+| portable bundle | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260623-004244` (+ .zip) | ~440 MB |
+| installer | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.4.exe` | 118 MB |
 | user guide | `docs/AutoSuisei_User_Guide.pdf` (6 หน้า Thai+English, fpdf2+Tahoma) | — |
+
+> bump version ที่ `installer/AutoSuisei.iss` (`MyAppVersion`) + `scripts/make_user_guide_pdf.py` (2 จุด).
+> ไล่รุ่น: 0.9.0 (108 MB) → 0.9.1 donate+model → 0.9.2 ลบ org → 0.9.3 Thai-path (118 MB) → **0.9.4** QOL+responsive
 
 ## Scripts dir resolution
 - compile def `AUTOPILOT_SCRIPTS_DIR` ชี้ `source/scripts/` (override ด้วย env var ได้)

@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, modules, codebase]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # Modules — โครงสร้าง `src/`
@@ -26,8 +26,16 @@ updated: 2026-06-17
 ## GUI tabs (`src/gui/`)
 - **Current**: `OcrTab`, `WatchTab`, `ReviewTab` + `MainWindow` + `SidebarNav` (240px nav)
   + `theme.qss` (Claude Design dark theme — ดู [[Dev-History]])
+  - **ReviewTab QOL** (v0.9.4): ↑/↓ nav (`currentCellChanged`+`keyPressEvent`), Ctrl+wheel zoom
+    (`QScrollArea`+`eventFilter`), Enter=Apply+Next (focus กลับ No.), Apply=verify
+  - **MainWindow responsive** (v0.9.4): `setMinimumSize` + clamp `availableGeometry()` + ห่อ tab ด้วย
+    `QScrollArea(widgetResizable)` กัน overlap ทุก resolution
 - **Legacy**: `MacrosTab`, `WebTab`, `ImageTab`
 - entry: `main.cpp`; resources: `resources.qrc`, `AutoSuisei.rc` (icon/version)
+
+> **org field ลบแล้ว** (v0.9.2): `AssetInfo.orgName` / `ReviewRow.orgName` / Org column ใน OcrTab·ReviewTab·ReviewModel
+> ออกหมด. **โมเดล/เทรน** อยู่นอก `src/`: `scripts/train/`, `scripts/sticker_digit.py`, `models/sticker_digit.onnx`
+> ([[Sticker-Digit-Model]])
 
 ## Module boundaries (กฎ)
 - `core` **ห้าม** depend บน `gui` หรือ `cli`

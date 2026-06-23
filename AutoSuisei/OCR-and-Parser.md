@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, ocr, parser, core]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # ⭐ OCR & Parser — หัวใจของระบบ
@@ -16,13 +16,18 @@ updated: 2026-06-17
 - **OpenCV 4** — image I/O + rotation + (Phase 5) template matching
 
 ## Parser แยกตาม category
-ฟังก์ชันรวม: `extract_serial(text, category)` แตกเป็น 3 ทาง + `extract_pc_no()` ใช้ร่วม
+ฟังก์ชันรวม: `extract_serial(text, category)` แตกเป็น **4 ทาง** (pc / monitor / accessory / donate) + `extract_pc_no()` ใช้ร่วม
+> donate parser + monitor serial + sticker model = **ฝั่ง Python เท่านั้น** (GUI ใช้ sidecar); C++ `AssetExtractor`
+> mirror เฉพาะ `extract_pc_no` + `extract_serial_pc`
 
 ### `extract_pc_no(text, range_hint)` — เลขครุภัณฑ์ (ทุก category)
 1. หา `No.NN` ด้วย `PC_NO_RE` — วน finditer ทุก match, **เลือกตัวที่อยู่ใน range ก่อน** (Phase 9.5)
 2. fallback: บรรทัดที่เป็นเลขโดดๆ 2-3 หลัก (`PC_NO_STANDALONE_LINE_RE`)
 3. ถ้าไม่มีใน range → คืน match แรกที่เจอ
 - **Range hint**: ชื่อไฟล์ `Laptop 301-400` → กรองให้ PC No. อยู่ใน `[301,400]`
+- ⚠️ **gap (เจอ Monitor batch 2026-06-23)**: สติกเกอร์ "โรงเรียน… `<N>`" ไม่มีคำ "No." + `PC_NO_STANDALONE_LINE_RE`
+  จับเฉพาะ **2-3 หลัก** → **เลขหลักเดียว 1-9 อ่านไม่ได้เลย**. แก้ที่วางแผน: reuse donate sticker-No.
+  (เลขท้ายบรรทัดที่มีอักษรไทย) เป็น last-resort fallback ([[Dev-History]] §ค้าง)
 
 ### `extract_serial_pc()` — PC&Laptop (Dell Service Tag 7 ตัว)
 - labeled `S/N:` / `SERVICE TAG` → 7-char (`SERIAL_LABELED_RE`)
@@ -47,19 +52,18 @@ updated: 2026-06-17
 - เลือก candidate **ยาวสุด**, เสมอกันเลือกตัวที่มี dash
 - ข้าม `CBA…` asset barcode เสมอ
 
-### `donate` — No. + Service Tag + ชื่อสถานที่ไทย (เพิ่ม 2026-06-19)
-ภาพบริจาค 2 แบบ: ถ่ายจอ (cmd `wmic SerialNumber` + Notepad `No.20` + ชื่อ รร.) / ถ่ายหลังเครื่อง (`SERVICE TAG(S/N):` + sticker ชื่อโรงเรียน + เลขรัน). 3 ฟิลด์แยกกัน best-effort
-- **Service Tag**: `extract_serial_pc` (7 ตัว) — แม่นเกือบ 100%
-- **เลข (No.)**: **position-aware** `sticker_no_from_boxes` — สติกเกอร์อยู่ฝั่งซ้าย (x<45%), Express/Tag/IO
-  อยู่กลาง-ขวา → กรองเฉพาะ box ซ้าย ดึงเลขซ้ายสุด (จับฟิวส์ `Hainn2`→`2`); fallback `extract_pc_no_donate` (text). *Express ไม่อ่าน*
-- **donate ข้าม rotation** (`ocr_donate` รอบเดียว เก็บ box) — ภาพตั้งตรง
-- ⚠️ **คอขวด = detector** (ข้ามเลขเดี่ยวบนกระดาษขาว + non-deterministic) → No. ~63%, recall เพิ่มยาก;
-  ดันสูงต้อง crop สติกเกอร์ก่อน OCR
-- **org_name (ไทย) = field ใหม่**: `RapidOCR` อ่านไทยไม่ได้ → `ocr_thai()` รัน **Tesseract `tha+eng --psm 6`**
-  รอบสอง (copy ไป ASCII temp ก่อน เพราะ tesseract เปิด unicode path ไม่ได้) → `extract_org_name()`
-  เลือกบรรทัดที่มี marker `โรงเรียน/รร./เรียน` หรือบรรทัดไทยยาวสุด, ตัด noise นำหน้าด้วย `_clean_org_line`
-- ไหลผ่าน CSV คอลัมน์ `org_name` → [[Modules|AssetInfo/ReviewRow]] → ตาราง OcrTab/ReviewTab → `ground_truth.csv`
-- *ponytail: best-effort single line — จออ่านดี, sticker หยาบ (ให้คนแก้ใน Review). Upgrade: crop label region + preprocess*
+### `donate` — No. (เลขสติกเกอร์) + Serial เท่านั้น (org reader ลบแล้ว v0.9.2)
+2 แบบ: **screen** (ถ่ายจอ — Notepad `NO.7` / cmd `wmic … SerialNumber`) + **chassis** (ถ่ายหลังเครื่อง —
+Dell `SERVICE TAG(S/N):` + sticker "New PC Donate 677" หรือเลขเขียนมือ)
+- **explicit No.** `extract_no_donate_explicit` (DonateMore): Notepad `NO.x` (`PC_NO_RE`) หรือ "Donate N"
+  (เลขล้วนใกล้คำ "Donate", range-hint filter) — **priority สูงสุด**; fast-path: เจอแล้ว **ข้าม model + crop + Tesseract**
+- **Serial** `extract_serial_donate`: Dell tag labeled / wmic `SerialNumber` anchor (ข้าม `DESKTOP-`, ผ่อน ≥1 alpha)
+- **handwritten No.** (Photos-3-001): sticker model `read_sticker_number` (YOLOv8 onnx) + `fuse_sticker_no`
+  กับ **crop_side** (subsequence rule) → ~78% — ดู [[Sticker-Digit-Model]]
+- **donate ข้าม rotation** (ภาพตั้งตรง — หมุนไล่ conf จะทิ้งเลขสติกเกอร์)
+- ❌ **org reader (Tesseract `tha`) ลบทั้งหมด** v0.9.2 (user: "เอาตัวอ่านภาษาไทยออกไปเลย" — ลายมือไทยอ่านมั่ว);
+  ตัว anchor เลข (`_THAI_LETTER_RE` / `_trailing_sticker_no` / `locate_sticker_bbox`) **เก็บไว้** (หา *เลข* ไม่ output ไทย)
+- *ponytail: DonateMore เลข typed → parser ~99.6% (model ไม่จำเป็น); Photos-3-001 เลขเขียนมือ → model+fusion เป็น lever*
 
 ## Rotation fallback — `ocr_with_rotation()`
 ภาพถ่ายมือถือมักเอียง/กลับหัว → ลองหลายมุมแล้วเลือกผลดีสุด

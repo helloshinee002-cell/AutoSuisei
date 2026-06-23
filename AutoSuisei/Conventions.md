@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, conventions, rules]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # Conventions & Rules
@@ -36,6 +36,11 @@ updated: 2026-06-17
   libs, CMake project, env var = ชื่อเดิม ([[Home]])
 - **vcvars64 ก่อนทุก build** ([[Build-and-Distribution]])
 - **Tests link debug deps** — รัน `ctest` ได้เฉพาะ debug preset
+- **Unicode path (MSVC)** ⭐ — narrow `std::string` ที่ MSVC ตีเป็น **ANSI codepage** ไม่ใช่ UTF-8 → path ไทย/ยูนิโค้ดพัง.
+  **ต้อง `std::filesystem::u8path(s)` ก่อนเข้า `fstream` / `fs::rename` / `fs::*` เสมอ** (เจอตอน Rename/Save CSV โฟลเดอร์ไทย v0.9.3)
+- **Parser single-source (Python)** — `scripts/bulk_extract.py` ↔ `scripts/ocr_worker.py` (watch path) ต้อง mirror
+  ด้วย (donate/monitor logic อยู่ฝั่ง Python เท่านั้น ไม่ได้อยู่ใน C++ `AssetExtractor`)
+- **Embeddable Python** — `python._pth` ไม่ auto-add script dir → script ต้อง `sys.path.insert(0, Path(__file__).resolve().parent)`
 
 ## Module boundaries
 ดู [[Modules]] — `core` ⊄ `gui`/`cli`; `storage` ผ่าน interface; `gui` ไม่เรียก WinAPI ตรง

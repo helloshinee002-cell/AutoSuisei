@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, overview]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # Overview — ปัญหา & Workflow
@@ -33,3 +33,5 @@ PC No. + serial ที่ถูกต้อง
 - **PC&Laptop** — Dell Service Tag 7 ตัวอักษร
 - **Monitor** — Dell S/N เต็มรูป `CN-XXXXX-XXXXX-XXX-XXXX(-A00)?`
 - **Accessory** — Olivetti / Verifone / Feitian ฯลฯ (รูปแบบ serial หลากหลาย)
+- **donate** (เพิ่ม v0.9.1) — เครื่องบริจาคโรงเรียน: No. (เลขสติกเกอร์) + Serial. screen (Notepad/wmic) +
+  chassis (Dell tag + sticker); เลขเขียนมือใช้ sticker model+fusion ([[OCR-and-Parser]] · [[Sticker-Digit-Model]])

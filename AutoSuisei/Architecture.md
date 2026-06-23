@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, architecture]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # Architecture — Pipeline & Data Flow
@@ -43,7 +43,16 @@ updated: 2026-06-17
 - `ground_truth.csv` — ผลที่คนตรวจ/แก้แล้วจาก Review tab (ใช้เทียบความแม่น)
 - ไฟล์ภาพถูก rename ตาม PC No. + serial ที่ยืนยัน
 
+## donate — sub-path เพิ่ม (v0.9.1)
+- เลข typed/printed → parser (`extract_no_donate_explicit`); เลขเขียนมือ → **YOLOv8 `models/sticker_digit.onnx`
+  รันด้วย onnxruntime** (มีใน embedded python อยู่แล้ว) + `fuse_sticker_no` — ดู [[Sticker-Digit-Model]]
+- Serial: Dell tag / wmic. **rotation ข้าม** สำหรับ donate (ภาพตั้งตรง)
+
+## GUI (v0.9.4)
+- **responsive**: `MainWindow` clamp ขนาดตาม `QScreen::availableGeometry()` + ห่อทุก tab ด้วย `QScrollArea`
+  → ไม่ overlap ทุก resolution. **Review QOL**: keyboard verify loop (↑/↓ / Ctrl+wheel zoom / Enter=Apply)
+
 ## หลักการ
-- **Parser อยู่ฝั่ง Python** (เร็วในการ iterate, อยู่กับ PaddleOCR) แต่ **mirror 1:1 กับ
-  C++ `AssetExtractor`** — ดูกฎ single-source ที่ [[OCR-and-Parser]] / [[Conventions]]
+- **Parser อยู่ฝั่ง Python** (เร็วในการ iterate, อยู่กับ PaddleOCR) — `extract_pc_no`/`extract_serial_pc` **mirror 1:1
+  กับ C++ `AssetExtractor`**; donate/monitor/sticker-model = Python เท่านั้น ([[OCR-and-Parser]] / [[Conventions]])
 - C++ ฝั่ง GUI ทำหน้าที่ orchestrate + แสดงผล + จัดการไฟล์ ไม่ทำ OCR เอง

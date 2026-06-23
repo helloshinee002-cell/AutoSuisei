@@ -1,20 +1,23 @@
 ---
 tags: [autosuisei, accuracy, results]
-updated: 2026-06-17
+updated: 2026-06-23
 ---
 
 # Accuracy Results
 
 [[Home]] · ตรรกะที่ทำให้ได้ตัวเลขนี้ [[OCR-and-Parser]]
 
-ทดสอบ 4 ชุดข้อมูล รวม **2104 ภาพ** (post-session 2026-05-18, v0.9.0)
+เดิม 4 ชุด รวม **2104 ภาพ** (v0.9.0) + **donate** (v0.9.1) + **Monitor batch** (v0.9.4, กำลังวัด)
 
-| Dataset | จำนวน | No. (PC No.) | Serial |
+| Dataset | จำนวน | No. | Serial |
 |---------|------:|:---:|:---:|
 | **PC&Laptop** Train2 | 632 | **98.3%** | 85.1% |
 | **Monitor** (Dell) | 754 | **98.8%** | **94.7%** |
 | **Monitor 2** (มีภาพหมุน) | 300 | 96.0% | **96.3%** |
 | **Accessory** (Olivetti/Verifone/Feitian) | 418 | 66.3% | 83.3% |
+| **donate** Photos-3-001 (เลขเขียนมือ) | 65 (gt) | ~78% (model+fusion) | — |
+| **DonateMore** (typed/printed) | 1319 | **~99.6%** | Dell tag / wmic |
+| **Monitor batch** (6 รร., เลขสติกเกอร์ไทย) | 119 | baseline pending | pending |
 
 ## อ่านผล
 - **No. แม่นสูงมากทุกชุด** ยกเว้น Accessory (66%) — เพราะป้ายครุภัณฑ์ของ accessory
@@ -23,6 +26,10 @@ updated: 2026-06-17
   — ก่อนมี fallback อยู่ราว 53% ([[Dev-History]])
 - PC&Laptop Serial (85%) ต่ำกว่า Monitor เพราะ Service Tag 7 ตัวสั้น OCR พลาดง่าย + คำลวง
   (กัน false positive ด้วย `SERIAL_BLOCKLIST`)
+- **donate** เลขเขียนมือบนสติกเกอร์ขาว — parser crop ~55% → +sticker model+fusion ~78% ([[Sticker-Digit-Model]]);
+  **DonateMore** เลข typed/printed (Notepad `NO.x` / "Donate N") → parser ~99.6% (model ไม่จำเป็น)
+- **org reader (ชื่อโรงเรียนไทย) ลบทิ้งแล้ว** (v0.9.2) — donate เหลือ No. + Serial ([[Dev-History]])
+- **Monitor batch** (ใหม่): No. = เลขสติกเกอร์ไทยเหมือน donate → กำลังวัด+จูน ([[OCR-and-Parser]])
 
 ## วิธีวัด
 - รัน `scripts/bulk_extract.py <folder> out.csv --category=<...>` → ได้ `*_paddle.csv`
