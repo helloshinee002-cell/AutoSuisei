@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, history, learnings]
-updated: 2026-06-23
+updated: 2026-06-24
 ---
 
 # Dev History & Key Learnings
@@ -86,6 +86,26 @@ updated: 2026-06-23
 - **assemble v0.9.4**: commit งาน 0.9.3 ที่ค้างใน main → **merge worktree→main (auto-clean ไม่มี conflict)** →
   bump 0.9.4 → ctest **107/107** → `AutoSuisei-Setup-0.9.4.exe` (118 MB)
 
+## Session 2026-06-24 — Monitor No. survey (เพดาน free/local) + unicode fix
+**Batch**: `Downloads/Rename/Monitor` 119 รูป / 6 รร. (ชื่อไฟล์ = No. ที่ rename แล้ว = ground truth ฟรี).
+สติกเกอร์กระดาษขาว "โรงเรียน… `<N>`" (**พิมพ์**) + Dell S/N label. เป้า user: อ่านเลขกระดาษขาว + S/N.
+
+- **พบ+แก้บั๊กจริง** — `ocr_with_rotation` ส่ง `str(path)` เข้า RapidOCR + ใช้ `cv2.imread` → **เปิด path ไทยไม่ได้** →
+  Monitor/PC/Accessory บนโฟลเดอร์ไทย **ได้ผลว่าง**. แก้ใช้ `_imread_unicode` → commit **`16a9f6f`** (บั๊กคลาสเดียวกับ
+  u8path C++ v0.9.3 แต่ฝั่ง Python; donate path ใช้ `_imread_unicode` อยู่แล้ว — `ocr_with_rotation` ลืม)
+- **Serial = 97.5%** present (ใช้ได้จริง). **No. = ลอง 7 วิธี เพดาน ~42%**:
+  RapidOCR full **1.7%** · crop+RapidOCR **24%** · Tesseract crop **28.6%** · model full **29%** · deskew+digit **36%**
+  · **fusion (crop+RapidOCR + model) 42%** ← best free/local
+- **สาเหตุที่ตัน** (ข้อจำกัด stack ไม่ใช่ bug): RapidOCR **อ่านไทยไม่ได้** + **ข้ามเลขเดี่ยวบนกระดาษขาว** + **RoHS "⑩"=10 หลอก**
+  + **crop หากระดาษขาวพลาด ~40%** (หมุน/แสง/สะท้อน/ตำแหน่ง). แม้ crop เป๊ะ digit-whitelist ก็เพี้ยน (บังคับอักษรไทยเป็นเลข)
+  → ต้อง `tha+eng`
+- **ทำไมไม่ทะลุ >90%** = trade-off triangle (ดู Key learnings). big VLM (Qwen2.5-VL/Ollama, เครื่องนี้มี+RAM 32GB)
+  น่าจะ >90% **แต่ไม่ distributable** (6-8GB, RAM 8GB+, CPU ช้า) → ตกข้อ user "ต้องลงเครื่องอื่นสเปคต่ำได้"; cloud ~99% แต่เสียเงิน
+- **ตัดสินใจ (user)**: ไม่ฝืน — Serial 97.5% พอ, No. เติม Review (sequential). **เลื่อนไป recurring-loop**: รอ batch ใหม่
+  → retrain โมเดลจิ๋ว 12MB ([[Sticker-Digit-Model]]). Monitor **พิมพ์** (≠ donate ลายมือ) → synth→real gap เล็ก → synthetic มีลุ้น
+- **Pipeline พร้อมใน `build/`** (gitignored): `measure_monitor.py`, `autolabel_monitor.py` (Tesseract crop→YOLO box, match 28/119),
+  `hi_read.py`/`probe_crop.py` (วิธีที่ลอง); + `synth_stickers.py`/`train_digit.py` พร้อม retarget Monitor
+
 ## Key learnings (รอบ donate → v0.9.4)
 - **MSVC narrow `std::string` = ANSI codepage** ไม่ใช่ UTF-8 → path ไทย/ยูนิโค้ดพังเมื่อเข้า `std::filesystem`/`fstream`
   → **ต้อง `std::filesystem::u8path(s)` เสมอ** (STRICT rule ใหม่ → [[Conventions]])
@@ -96,9 +116,15 @@ updated: 2026-06-23
 - **Qt responsive**: `resize()` ต้อง clamp `QScreen::availableGeometry()` (กันเปิดใหญ่เกินจอ) + `QScrollArea(widgetResizable)`
   ห่อ tab = รับประกันไม่ overlap; table-in-scrollarea ปกติ scroll ในตัว outer bar โผล่เฉพาะตอนหน้าต่างเล็กจริง
 - **git worktree merge สะอาด** ได้เมื่อสองฝั่งแตะคนละ region (u8path = rename/save lines, QOL = nav/zoom/apply lines)
+- ⭐ **OCR trade-off triangle** (accuracy ↔ distributable ↔ free/offline — เลือกได้ ~2): big VLM แม่นแต่ไม่ distributable
+  (โมเดลหลาย GB + RAM สูง); cloud แม่นแต่เสียเงิน; free+distributable+offline (PaddleOCR/Tesseract/tiny-model) **เพดาน ~42%**
+  บนเลขกระดาษขาวจริง. → high accuracy แบบ **distributable** = **เทรนโมเดลจิ๋วเอง (synthetic)** ไม่ใช่สลับเป็น engine ใหญ่
+- **เลขกระดาษขาว = ปัญหา data ไม่ใช่ code** — คนอ่านออก ~100% แต่ pipeline OCR เก่าตัน เพราะ detector ข้าม + crop เปราะ.
+  วัดก่อนเสมอ (อย่า extrapolate: donate Tesseract 78% **ไม่** transfer มา Monitor = 28.6%)
 
-## ค้าง / ต่อไป
-- **Monitor batch** (`Downloads/Rename/Monitor`, 119 รูป / 6 โรงเรียน): วัด+จูน No. parser — Monitor No. = เลขสติกเกอร์
-  ไทยแบบ donate; current parser อ่านเลขหลักเดียว 1-9 ไม่ได้ (`PC_NO_STANDALONE_LINE_RE` จับ 2-3 หลัก) →
-  reuse donate sticker-No. (ดู [[OCR-and-Parser]])
+## ค้าง / ต่อไป (recurring-loop)
+- **Monitor No.** (survey 2026-06-24 ↑): เพดาน free/local **42%** → **รอ batch รูปใหม่ → retrain โมเดลจิ๋ว** เข้าหา >90%.
+  ทางที่ฟิต distributable: enhance `synth_stickers.py` เป็น Monitor-style (printed + bg Monitor จริง) + 28 real → train
+  → `sticker_digit.onnx` 12MB. (interim ถ้าอยาก: wire fusion 42% — bundle-compatible; >90% **now** ต้อง bundled VLM
+  เล็ก Florence-2 ~1GB ที่หนักกว่า หรือ cloud ที่เสียเงิน)
 - **Photos-3-001 No. 78%→95%**: real-data fine-tune `sticker_digit.onnx` (auto-box) — ดู [[Sticker-Digit-Model]]

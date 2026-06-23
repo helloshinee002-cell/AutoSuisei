@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, ocr, parser, core]
-updated: 2026-06-23
+updated: 2026-06-24
 ---
 
 # ⭐ OCR & Parser — หัวใจของระบบ
@@ -11,9 +11,13 @@ updated: 2026-06-23
 `src/ocr/AssetExtractor.{h,cpp}` (C++, mirror 1:1)
 
 ## OCR engine
-- **PaddleOCR** ผ่าน `rapidocr-onnxruntime` (Python sidecar) — ความแม่นป้ายเลข ~97.9%
-- **Tesseract 5** ยังลิงก์ไว้ใน `OcrEngine` (C++ direct) แต่ **GUI ไม่ใช้**
+- **PaddleOCR** ผ่าน `rapidocr-onnxruntime` (Python sidecar) — ความแม่นป้ายเลข ~97.9%; **อ่านไทยไม่ได้** +
+  **ข้ามเลขเดี่ยวใหญ่บนกระดาษขาว** (detector skip) = ข้อจำกัดหลักของ stack (ดู [[Accuracy-Results]] §Monitor survey)
+- **Tesseract 5** ยังลิงก์ไว้ใน `OcrEngine` (C++ direct) แต่ **GUI ไม่ใช้**; ฝั่ง Python เรียก CLI `tesseract` (dev เท่านั้น —
+  **ไม่อยู่ใน bundle**, มีแค่ `tesseract55.dll` ของ C++) → crop reader เป็น dev-only
 - **OpenCV 4** — image I/O + rotation + (Phase 5) template matching
+- ⚠️ **unicode-imread fix (2026-06-24, `16a9f6f`)**: `ocr_with_rotation` ต้องอ่านภาพผ่าน `_imread_unicode`
+  (np.fromfile+imdecode) — เดิมส่ง `str(path)`/`cv2.imread` → **path ไทยเปิดไม่ได้ → ผลว่าง** (donate ใช้ idiom นี้อยู่แล้ว)
 
 ## Parser แยกตาม category
 ฟังก์ชันรวม: `extract_serial(text, category)` แตกเป็น **4 ทาง** (pc / monitor / accessory / donate) + `extract_pc_no()` ใช้ร่วม
@@ -25,9 +29,10 @@ updated: 2026-06-23
 2. fallback: บรรทัดที่เป็นเลขโดดๆ 2-3 หลัก (`PC_NO_STANDALONE_LINE_RE`)
 3. ถ้าไม่มีใน range → คืน match แรกที่เจอ
 - **Range hint**: ชื่อไฟล์ `Laptop 301-400` → กรองให้ PC No. อยู่ใน `[301,400]`
-- ⚠️ **gap (เจอ Monitor batch 2026-06-23)**: สติกเกอร์ "โรงเรียน… `<N>`" ไม่มีคำ "No." + `PC_NO_STANDALONE_LINE_RE`
-  จับเฉพาะ **2-3 หลัก** → **เลขหลักเดียว 1-9 อ่านไม่ได้เลย**. แก้ที่วางแผน: reuse donate sticker-No.
-  (เลขท้ายบรรทัดที่มีอักษรไทย) เป็น last-resort fallback ([[Dev-History]] §ค้าง)
+- ⚠️ **gap — Monitor No. (survey 2026-06-24)**: สติกเกอร์ "โรงเรียน… `<N>`" ไม่มีคำ "No." + standalone จับ 2-3 หลัก
+  → เลขเดี่ยว 1-9 พลาด. **Thai-anchor fallback ใช้ไม่ได้** เพราะ RapidOCR อ่านไทยไม่ออก (ไม่มีไทยใน output ให้ anchor) +
+  ข้ามเลขเดี่ยวบนกระดาษขาว + RoHS "⑩"=10 หลอก. ลอง 7 วิธี **เพดาน free/local 42%** → เลื่อนไป retrain โมเดลจิ๋ว
+  (recurring-loop). บทสรุปเต็ม: [[Dev-History]] §Monitor No. survey · [[Accuracy-Results]]
 
 ### `extract_serial_pc()` — PC&Laptop (Dell Service Tag 7 ตัว)
 - labeled `S/N:` / `SERVICE TAG` → 7-char (`SERIAL_LABELED_RE`)

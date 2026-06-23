@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, ocr, model, training, second-brain]
-updated: 2026-06-23
+updated: 2026-06-24
 ---
 
 # 🔢 Sticker-Digit Model — YOLOv8 + fusion
@@ -41,7 +41,10 @@ updated: 2026-06-23
 - **real-data fine-tune** (Phase B รอบ 2): auto-box ภาพจริง (model detect + reconcile กับ gt + interpolate หลักที่หาย)
   → fine-tune real + synthetic แบบ split กัน leakage
 - **recurring loop**: หลัง Review แต่ละ batch → เลขที่ verify แล้ว + box → เพิ่ม real set → retrain เป็นระยะ
-- **Monitor batch**: No. = เลขสติกเกอร์ไทยเหมือนกัน → ถ้า parser-only ไม่พอ พิจารณา reuse โมเดลนี้ ([[Dev-History]] §ค้าง)
+- **Monitor (survey 2026-06-24, [[Accuracy-Results]])**: free/local เพดาน 42% → **ทางที่ distributable ที่สุด = retrain
+  โมเดลนี้** ด้วย **synthetic Monitor-style** (printed → synth→real gap เล็กกว่า donate ลายมือ): `synth_stickers.py --bg`
+  ชี้ background Monitor จริง + 28 real auto-labeled (`build/monitor_labeled`) → train → 12MB onnx รันเครื่องสเปคต่ำได้.
+  รอ batch รูปเพิ่ม (recurring-loop) ดันเข้า >90%
 
 ## ตรงไปตรงมา (ponytail)
 - DonateMore เลข typed → **parser พอ ไม่ต้องใช้โมเดล** (99.6%). โมเดลเป็น lever เฉพาะ **เลขเขียนมือ** (Photos-3-001)
