@@ -610,16 +610,17 @@ def ocr_with_rotation(engine, img_path: Path, category: str) -> tuple[str, float
         mc = sum(confs) / len(confs) if confs else 0.0
         return text, mc, len(result or [])
 
+    # อ่านภาพแบบ unicode-safe (รองรับ path ไทย/ช่องว่าง) — cv2.imread / RapidOCR(path) เปิด non-ASCII ไม่ได้
+    # (เดิมส่ง str(path) เข้า engine → ภาพในโฟลเดอร์ชื่อไทยอ่านไม่ออก = ผลว่าง)
+    img_arr = _imread_unicode(img_path)
+    if img_arr is None:
+        return "", 0.0, 0
+
     # 0° first
-    text0, mc0, lc0 = _run(str(img_path))
+    text0, mc0, lc0 = _run(img_arr)
     s0 = (*_score(text0)[:2], mc0)
     # If both PC No. and serial found, no rotation needed
     if s0[0] == 1 and s0[1] == 1:
-        return text0, mc0, lc0
-
-    # Try rotations only if something is missing
-    img_arr = cv2.imread(str(img_path))
-    if img_arr is None:
         return text0, mc0, lc0
 
     best_text, best_mc, best_lc = text0, mc0, lc0
