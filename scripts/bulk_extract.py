@@ -566,6 +566,71 @@ def donate_fields_from_crop(img_path):
     return _trailing_sticker_no(txt)
 
 
+def _white_sticker_crop(im):
+    """หา bbox สติกเกอร์กระดาษขาว (สว่าง + low-sat + solid + bright-fraction) → crop + upscale; None ถ้าไม่เจอ.
+    crop ตัด Dell label / RoHS "⑩" ออก (อยู่นอกสติกเกอร์) → เหลือเฉพาะเลขรันบนกระดาษขาว."""
+    import cv2
+    import numpy as np
+    H, W = im.shape[:2]
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    sat = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)[:, :, 1]
+    _, th = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
+    th = cv2.morphologyEx(th, cv2.MORPH_CLOSE, np.ones((21, 21), np.uint8))
+    cnts, _ = cv2.findContours(th, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    img_area = H * W
+    best, ba = None, 0
+    for c in cnts:
+        x, y, w, h = cv2.boundingRect(c)
+        area = w * h
+        if area < img_area * 0.01 or area > img_area * 0.5:
+            continue
+        if not (0.35 < w / max(h, 1) < 3.2):
+            continue
+        if cv2.contourArea(c) / max(area, 1) < 0.55:
+            continue
+        if (gray[y:y + h, x:x + w] > 200).mean() < 0.35:   # paper = mostly very-bright px (กัน metallic/label)
+            continue
+        if sat[y:y + h, x:x + w].mean() > 70:               # achromatic white
+            continue
+        if area > ba:
+            best, ba = (x, y, w, h), area
+    if not best:
+        return None
+    x, y, w, h = best
+    pad = int(0.08 * max(w, h))
+    crop = im[max(0, y - pad):min(H, y + h + pad), max(0, x - pad):min(W, x + w + pad)]
+    if crop.size == 0:
+        return None
+    s = max(1.0, 900.0 / max(crop.shape[:2]))
+    return cv2.resize(crop, None, fx=s, fy=s, interpolation=cv2.INTER_CUBIC) if s > 1 else crop
+
+
+def read_monitor_sticker_no(engine, img_path) -> str:
+    """Monitor No. = เลขรันบนสติกเกอร์กระดาษขาว — **fusion** 2 สัญญาณ (RapidOCR full-image อ่านไม่ได้:
+    ไทยไม่ออก + ข้ามเลขเดี่ยวบนกระดาษขาว + RoHS "⑩"=10 หลอก):
+      - sticker model (YOLO onnx, full image) → จับเลขเดี่ยว 1-9 ที่ PaddleOCR ข้าม
+      - RapidOCR บน **crop กระดาษขาว** → จับ 2 หลัก printed (RoHS/Dell อยู่นอก crop)
+    fuse ด้วย subsequence rule. วัดบน batch จริง **~42%** (เพดาน free/local; retrain โมเดลดันสูงภายหลัง — recurring-loop).
+    คืน '' ถ้าทั้งคู่ว่าง → caller fallback `extract_pc_no`.
+    """
+    im = _imread_unicode(img_path)
+    if im is None:
+        return ""
+    from sticker_digit import read_sticker_number
+    model_no = read_sticker_number(im)
+    crop_no = ""
+    crop = _white_sticker_crop(im)
+    if crop is not None:
+        try:
+            result, _ = engine(crop)
+            joined = " ".join(t for (_b, t, _s) in (result or []))
+            nums = _STICKER_NO_RE.findall(joined)
+            crop_no = nums[-1] if nums else ""
+        except Exception:  # noqa: BLE001
+            crop_no = ""
+    return fuse_sticker_no(model_no, crop_no)
+
+
 def parse_filename(name: str) -> dict:
     out = {"batch_id": "", "photo_date": "", "photo_index": 0, "pc_range": ""}
     if (m := BATCH_RE.search(name)):
@@ -739,6 +804,10 @@ def main() -> int:
                     crop_side = (crop_no or sticker_no_from_boxes(raw)
                                  or extract_pc_no_donate(joined))
                     pc_no = fuse_sticker_no(model_no, crop_side)
+            elif category == "monitor":
+                # เลขกระดาษขาว: fusion model + crop (RapidOCR full-image อ่านไม่ได้) → ~42%; ว่าง → fallback parser
+                pc_no = (read_monitor_sticker_no(engine, img)
+                         or extract_pc_no(joined, meta["pc_range"]))
             else:
                 pc_no = extract_pc_no(joined, meta["pc_range"])
 

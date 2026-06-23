@@ -37,6 +37,7 @@ from bulk_extract import (  # noqa: E402
     ocr_donate,
     ocr_with_rotation,
     parse_filename,
+    read_monitor_sticker_no,
     sticker_no_from_boxes,
 )
 
@@ -110,6 +111,10 @@ def main() -> int:
                 crop_side = (crop_no or sticker_no_from_boxes(raw)
                              or extract_pc_no_donate(joined))
                 pc_no = fuse_sticker_no(model_no, crop_side)
+        elif category == "monitor":
+            # เลขกระดาษขาว: fusion model + crop (RapidOCR full-image อ่านไม่ได้) → ~42%
+            pc_no = (read_monitor_sticker_no(engine, img)
+                     or extract_pc_no(joined, meta["pc_range"]))
         else:
             pc_no = extract_pc_no(joined, meta["pc_range"])
 
