@@ -60,7 +60,9 @@ if(WIN32)
         "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/Qt6/plugins")
     set(_qt_plugin_root "$<IF:$<CONFIG:Debug>,${_qt_plugin_root_debug},${_qt_plugin_root_release}>")
 
-    foreach(_subdir platforms styles imageformats)
+    # tls = Qt6 TLS backend (qopensslbackend/qschannelbackend) — จำเป็นสำหรับ HTTPS (Updater → GitHub API);
+    # ขาด → "TLS initialization failed". OpenSSL DLL (libssl/libcrypto) ถูก copy มากับ vcpkg DLLs อยู่แล้ว
+    foreach(_subdir platforms styles imageformats tls)
         add_custom_command(TARGET AutoSuisei POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${_qt_plugin_root}/${_subdir}"

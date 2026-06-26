@@ -48,7 +48,7 @@ Write-Host "Assembling bundle in $bundle"
 
 # 1. main exe + Qt plugins (already deployed next to release exe by post-build)
 Copy-Item "$releaseDir\AutoSuisei.exe" $bundle
-foreach ($sub in @('platforms', 'styles', 'imageformats')) {
+foreach ($sub in @('platforms', 'styles', 'imageformats', 'tls')) {  # tls = HTTPS backend (Updater)
     if (Test-Path "$releaseDir\$sub") {
         Copy-Item -Recurse "$releaseDir\$sub" $bundle
     }
