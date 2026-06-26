@@ -54,6 +54,7 @@ clang-tidy -p build/windows-x64-debug src/**/*.cpp
 ## Project Rules
 
 ### Mandatory
+0. 🔴 **ห้ามเดา (ask, don't guess)** — ถ้าไม่เข้าใจ requirement / โครงสร้าง / ชื่อไฟล์ / พฤติกรรมที่ต้องการ ให้ **ถามก่อนเสมอ** (ห้ามเดาเด็ดขาดไม่ว่ากรณีใด ๆ); ไม่รู้ว่าโค้ด/ข้อมูลเป็นยังไง → อ่าน/วัดจริงก่อน ห้ามสมมติ
 1. **TDD** — เขียน GTest ก่อนเสมอแล้วค่อย implement
 2. **Plan first** — ก่อนแก้โค้ดใหญ่ๆ ให้สร้าง/อัปเดต `docs/dev-plan.md`
 3. **Conventional Commits**: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `perf:`, `chore:`, `build:`
@@ -125,10 +126,11 @@ docs/          dev-plan.md (phase-by-phase log)
   - **Monitor** (754 Dell): No. **98.8%** / Serial **94.7%**
   - **Monitor 2** (300 มีภาพหมุน): No. **96.0%** / Serial **96.3%**
   - **Accessory** (418 Olivetti/Verifone/Feitian): No. **66.3%** / Serial **83.3%**
-- **Build artifacts** (v0.9.5, 2026-06-24 — Monitor No. = crop+model **fusion** ~42% [free/local ceiling; เลขกระดาษขาว] + unicode-imread fix [Thai folder]; exe จาก 0.9.4 ไม่เปลี่ยน, OCR เป็น Python-only):
-  - exe: `build/windows-x64-release/src/gui/AutoSuisei.exe` (768 KB, = 0.9.4 — ไม่แตะ C++)
-  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260624-004452` (440 MB) + .zip
-  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.5.exe` (118 MB)
+- **Build artifacts** (v0.9.7, 2026-06-26 — **Barcode-first Serial (PC + Donate)**: อ่าน Dell barcode ก่อน OCR — laptop = **Data Matrix** (`pylibdmtx`, ECC), desktop+laptop = **Code128** (`pyzbar`/ZBar, ~0.03s). **แม่นกว่า OCR**: Data Matrix [laptop `6X0F453` vs OCR misread `6XOF463`; +10pp coverage บน 150-img], Code128 [donate ST: OCR สับสน **O↔0** เช่น `4N0TZL2`/`F0RPWZ2`/`BL0CXZ2` — วัด **8/8 disagreements barcode ถูก OCR ผิด**]; อ่านไม่ออก → fallback OCR + remark คอลัมน์ **Src**. decoder lazy **ZBar → Data Matrix → cv2** (ZBar เร็ว เจอก่อนข้าม Data Matrix; ปลอดภัยกับ laptop = ZBar คืน CBA/QR-string ที่ไม่ผ่าน `_valid_dell_tag` → fall through). + Review **image pane ใหญ่ขึ้น** [splitter 2:3]. scope `pc`+`donate`: accessory ตัด (S/N พิมพ์/สลัก, โค้ด=CBA → 0/40), monitor คง OCR [CN-…-A00]):
+  - exe: `build/windows-x64-release/src/gui/AutoSuisei.exe` (= 0.9.6 — 0.9.7 เป็น **Python-only**, ไม่แตะ C++)
+  - bundle: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260626-131427` (442 MB) + .zip (174 MB) — **รวม `pylibdmtx`+`libdmtx-64.dll` + `pyzbar`+`libzbar-64.dll`/`libiconv.dll`** (offline, ทุกเครื่อง Windows)
+  - installer: `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.7.exe` (119 MB)
+  - ก่อนหน้า: v0.9.6 = Data Matrix PC only; v0.9.5 = Monitor No. fusion ~42% + unicode-imread fix
   - **`make_bundle.ps1` copies `models/sticker_digit.onnx` → `<bundle>/models/`** (sticker_digit.py
     resolve `<scripts-parent>/models/`); ไม่งั้น donate sticker model หายจาก bundle
 - **Docs**: `docs/AutoSuisei_User_Guide.pdf` (6 pages, Thai+English, fpdf2+Tahoma)

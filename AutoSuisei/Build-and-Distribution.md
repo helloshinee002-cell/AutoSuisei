@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, build, release]
-updated: 2026-06-23
+updated: 2026-06-26
 ---
 
 # Build & Distribution
@@ -32,7 +32,7 @@ cmake --build --preset windows-x64-release --target AutoSuisei
 
 ## Test (debug only — tests link debug deps)
 ```powershell
-ctest --preset windows-x64-debug --output-on-failure              # ทั้งหมด (107 tests)
+ctest --preset windows-x64-debug --output-on-failure              # ทั้งหมด (109 tests)
 ctest --preset windows-x64-debug -R "AssetExtractor.*" --output-on-failure   # ชุดเดียว
 ```
 
@@ -48,19 +48,33 @@ clang-tidy -p build/windows-x64-debug src/**/*.cpp
 - สคริปต์: `scripts/make_installer.ps1` (re-run bundle + iscc), `scripts/make_bundle.ps1`, `scripts/setup_embedded_python.ps1`
 - **`make_bundle.ps1` copies**: `scripts/*.py` + **`models/sticker_digit.onnx`** + embedded python + Qt/vcpkg/MSVC DLLs
   (ถ้าลืม copy `models/` → donate sticker model หาย, fusion ตกเหลือ crop-only)
+- **Barcode libs** (v0.9.6/0.9.7) อยู่ใน embedded python → bundle อัตโนมัติ: `pylibdmtx` (`libdmtx-64.dll`, Data Matrix) +
+  `pyzbar` (`libzbar-64.dll` + `libiconv.dll`, Code128/ZBar). offline ทุกเครื่อง Windows — ติดตั้งด้วย `pip install` ลง `build/embedded-python`
 - embedded Python = **3.11.9** (`build/embedded-python/`, `python-embed-3.11.9.zip`)
   — แยกจาก Python ที่ใช้ตอน dev; `python._pth` ไม่ auto-add script dir → script ใช้ `sys.path.insert` ([[Conventions]])
 
-## Artifacts (v0.9.4, 2026-06-23)
-| | path | size |
-|---|---|---|
-| exe | `build/windows-x64-release/src/gui/AutoSuisei.exe` | ~768 KB |
-| portable bundle | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260623-004244` (+ .zip) | ~440 MB |
-| installer | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.4.exe` | 118 MB |
-| user guide | `docs/AutoSuisei_User_Guide.pdf` (6 หน้า Thai+English, fpdf2+Tahoma) | — |
+## Version source (v1.0.0+)
+- **single source = root `CMakeLists.txt` `project(... VERSION x.y.z)`** → inject C++ ผ่าน compile-def
+  `APP_VERSION` (`src/gui/CMakeLists.txt`) → ใช้ใน `src/gui/Updater.cpp` + SidebarNav (version ซ้ายล่าง)
+- bump แล้ว **sync ให้ตรง** 3 ที่: root CMake VERSION + `installer/AutoSuisei.iss` (`MyAppVersion`) + `scripts/make_user_guide_pdf.py` (2 จุด)
 
-> bump version ที่ `installer/AutoSuisei.iss` (`MyAppVersion`) + `scripts/make_user_guide_pdf.py` (2 จุด).
-> ไล่รุ่น: 0.9.0 (108 MB) → 0.9.1 donate+model → 0.9.2 ลบ org → 0.9.3 Thai-path (118 MB) → **0.9.4** QOL+responsive
+## Auto-update (v1.0.0)
+- `src/gui/Updater.{h,cpp}` (Qt6::Network) — Check/Update ผ่าน **GitHub Releases REST API** (public, ไม่ต้อง token)
+- **`scripts/make_update_package.ps1`** → `update-package.zip` = **bundle ลบ `python/`** (app-patch); updater
+  ดาวน์โหลดอันนี้ก่อน, ไม่มี → fallback full installer. ⚠️ release ที่เปลี่ยน python deps **อย่าใส่ update-package** (ให้ลง full)
+- release ต้องมี asset ชื่อ `update-package.zip` + `AutoSuisei-Setup-x.y.z.exe`; apply ผ่าน `.bat` (elevate UAC, Program Files)
+
+## Artifacts (v1.0.0, 2026-06-26)
+|                 | path                                                                             | size    |
+| --------------- | -------------------------------------------------------------------------------- | ------- |
+| exe             | `build/windows-x64-release/src/gui/AutoSuisei.exe` (rebuild — Updater + version) | ~800 KB |
+| portable bundle | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-20260626-184503` (+ .zip)  | 442 MB  |
+| installer       | `C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-1.0.0.exe`                    | 124 MB  |
+| **update-package** | `C:\Users\hello\Backups\AutoSuisei\update-package.zip` (app-patch, ไม่มี python/) | 72 MB |
+| user guide      | `docs/AutoSuisei_User_Guide.pdf` (6 หน้า Thai+English, fpdf2+Tahoma)             | —       |
+
+> ไล่รุ่น: 0.9.0 → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) →
+> **1.0.0** monitor CN serial + version UI + GitHub auto-updater. *(push + `gh release create` = Phase 2b หลัง gh login)*
 
 ## Scripts dir resolution
 - compile def `AUTOPILOT_SCRIPTS_DIR` ชี้ `source/scripts/` (override ด้วย env var ได้)

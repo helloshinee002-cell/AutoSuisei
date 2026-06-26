@@ -1,15 +1,16 @@
 ---
 tags: [autosuisei, conventions, rules]
-updated: 2026-06-23
+updated: 2026-06-26
 ---
 
 # Conventions & Rules
 
-[[Home]] · กฎ mirror อยู่ที่ [[OCR-and-Parser]]
+[[Home]] · กฎ mirror อยู่ที่ [[OCR-and-Parser]] · workflow wiki + กฎ agent ที่ [[CLAUDE]]
 
-แหล่ง: `CLAUDE.md` (single source of truth ของโปรเจกต์)
+แหล่ง: `Documents/AutoPilot/CLAUDE.md` (single source of truth ของโปรเจกต์โค้ด) + vault [[CLAUDE]] (wiki-agent)
 
 ## Mandatory
+0. 🔴 **ห้ามเดา** — ถ้าไม่เข้าใจ requirement/โครงสร้าง/โค้ด ให้ **ถามก่อนเสมอ** (ห้ามเดาเด็ดขาดไม่ว่ากรณีใด); ไม่รู้ว่าโค้ด/ข้อมูลเป็นยังไง → อ่าน/วัดจริงก่อน
 1. **TDD** — เขียน GTest ก่อนเสมอ แล้วค่อย implement
 2. **Plan first** — ก่อนแก้ใหญ่ สร้าง/อัปเดต `docs/dev-plan.md` รอ approval
 3. **Conventional Commits** — `feat: fix: docs: test: refactor: perf: chore: build:`
