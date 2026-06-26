@@ -48,6 +48,8 @@ clang-tidy -p build/windows-x64-debug src/**/*.cpp
 - สคริปต์: `scripts/make_installer.ps1` (re-run bundle + iscc), `scripts/make_bundle.ps1`, `scripts/setup_embedded_python.ps1`
 - **`make_bundle.ps1` copies**: `scripts/*.py` + **`models/sticker_digit.onnx`** + embedded python + Qt/vcpkg/MSVC DLLs
   (ถ้าลืม copy `models/` → donate sticker model หาย, fusion ตกเหลือ crop-only)
+- ⚠️ **Qt plugins ต้อง deploy ครบ — list อยู่ 2 ที่ต้องตรงกัน**: `src/gui/CMakeLists.txt` (POST_BUILD foreach) + `make_bundle.ps1` (foreach).
+  ปัจจุบัน = `platforms styles imageformats` **+ `tls`**. **`tls` จำเป็นสำหรับ HTTPS** (Updater → GitHub) — ขาด → "TLS initialization failed" (bug v1.0.0). เพิ่ม Qt feature ที่ใช้ plugin ใหม่ → ต้องเพิ่มทั้ง 2 ที่
 - **Barcode libs** (v0.9.6/0.9.7) อยู่ใน embedded python → bundle อัตโนมัติ: `pylibdmtx` (`libdmtx-64.dll`, Data Matrix) +
   `pyzbar` (`libzbar-64.dll` + `libiconv.dll`, Code128/ZBar). offline ทุกเครื่อง Windows — ติดตั้งด้วย `pip install` ลง `build/embedded-python`
 - embedded Python = **3.11.9** (`build/embedded-python/`, `python-embed-3.11.9.zip`)
