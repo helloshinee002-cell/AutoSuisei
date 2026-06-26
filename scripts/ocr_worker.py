@@ -38,6 +38,7 @@ from bulk_extract import (  # noqa: E402
     ocr_with_rotation,
     parse_filename,
     read_monitor_sticker_no,
+    read_serial_barcode,
     sticker_no_from_boxes,
 )
 
@@ -98,6 +99,13 @@ def main() -> int:
 
         meta = parse_filename(img.name)
         serial = extract_serial(joined, category)
+        # Barcode-first Serial (pc + donate + monitor) — Dell barcode แม่นกว่า OCR (laptop=Data Matrix,
+        # desktop/laptop=Code128 ZBar, monitor=CN serial reformat; แก้ O↔0); อ่านไม่ออก → คง OCR. (accessory ตัด)
+        serial_source = "ocr"
+        if category in ("pc", "donate", "monitor"):
+            bc = read_serial_barcode(img, category)
+            if bc:
+                serial, serial_source = bc, "barcode"
         if category == "donate":
             # DonateMore: เลข typed/printed (Notepad/Donate sticker) → ใช้เลย + ข้าม model/Tesseract (เร็ว);
             # ไม่เจอ = สติกเกอร์เขียนมือไทย (Photos-3-001) → fusion model+crop. (อ่านชื่อไทยถูกลบ — No.+Serial)
@@ -125,6 +133,7 @@ def main() -> int:
             "photo_index": meta["photo_index"],
             "pc_no": pc_no,
             "serial_no": serial,
+            "serial_source": serial_source,
             "batch_id": meta["batch_id"],
             "photo_date": meta["photo_date"],
             "pc_range": meta["pc_range"],

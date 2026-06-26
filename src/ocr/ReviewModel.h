@@ -17,6 +17,7 @@ struct ReviewRow {
     std::string filename;
     std::string pcNo;
     std::string serialNo;
+    std::string serialSource;     ///< "barcode" | "ocr" — ที่มาของ serialNo (remark)
     std::string originalPcNo;     ///< ค่าเดิมจาก OCR — ห้ามแก้
     std::string originalSerialNo; ///< ค่าเดิมจาก OCR — ห้ามแก้
     std::string notes;

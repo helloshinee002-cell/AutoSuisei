@@ -631,6 +631,156 @@ def read_monitor_sticker_no(engine, img_path) -> str:
     return fuse_sticker_no(model_no, crop_no)
 
 
+# ---------- Barcode/QR-first Serial reader (pc + accessory) ----------
+# S/N เครื่องอยู่ใน Dell **Data Matrix** (service tag เช่น 6YW8RV2) — RapidOCR/cv2 อ่านไม่ได้ →
+# pylibdmtx. cv2 อ่าน QR + 1D ได้ฟรี (เผื่อ asset ที่ serial อยู่ใน QR/1D). โค้ดที่อ่านง่ายสุดบนป้าย
+# มักเป็น CBA10000… (asset tag ธนาคาร) **ไม่ใช่ S/N** → กรองทิ้ง + validate shape ตาม category.
+
+
+def _decode_datamatrix(im, timeout_ms: int = 2000) -> list[str]:
+    """pylibdmtx decode (Data Matrix). upscale 1.5x ช่วยอ่าน module เล็กบนรูปมือถือ.
+    คืน [] ถ้า lib ไม่มี/อ่านไม่ได้ (→ fallback OCR ทำงานต่อ)."""
+    try:
+        from pylibdmtx.pylibdmtx import decode
+    except ImportError:
+        return []
+    import cv2
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+    try:
+        res = decode(gray, timeout=timeout_ms, max_count=6)
+    except Exception:  # noqa: BLE001
+        return []
+    out = []
+    for r in res:
+        try:
+            out.append(r.data.decode("ascii", "ignore").strip())
+        except (UnicodeError, AttributeError):
+            pass
+    return out
+
+
+def _decode_cv2_codes(im) -> list[str]:
+    """cv2 QR + 1D barcode payloads (ฟรี ติดมากับ bundle). เผื่อ serial ที่อยู่ใน QR/1D."""
+    import cv2
+    out: list[str] = []
+    try:
+        ok, decoded, _pts, _qr = cv2.QRCodeDetector().detectAndDecodeMulti(im)
+        if ok:
+            out += [d for d in decoded if d]
+    except Exception:  # noqa: BLE001 — cv2 QR signature/ผลต่าง version
+        pass
+    try:
+        ok, info, _types, _pts = cv2.barcode.BarcodeDetector().detectAndDecodeMulti(im)
+        if ok:
+            out += [s for s in info if s]
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _zbar_decode_gray(gray) -> list[str]:
+    """ZBar decode บนภาพ gray (reuse โดย rotation sweep). จำกัด symbols = Code128/Code39/QR
+    — ตัด PDF417 (libzbar assert spam บน noise + ช้า) ออก. คืน [] ถ้าไม่มี lib."""
+    try:
+        from pyzbar.pyzbar import decode as zdecode, ZBarSymbol
+    except ImportError:
+        return []
+    syms = [ZBarSymbol.CODE128, ZBarSymbol.CODE39, ZBarSymbol.QRCODE]
+    out: list[str] = []
+    try:
+        for d in zdecode(gray, symbols=syms):
+            try:
+                out.append(d.data.decode("ascii", "ignore").strip())
+            except (UnicodeError, AttributeError):
+                pass
+    except Exception:  # noqa: BLE001
+        return []
+    return out
+
+
+def _decode_zbar(im) -> list[str]:
+    """pyzbar (ZBar): อ่าน service-tag barcode ของ Dell (desktop/laptop = **Code128**, จอ = Code128/CN)
+    ที่ cv2/Data Matrix อ่านไม่ได้. เร็ว (~0.03s) + แม่น (แก้ OCR O↔0)."""
+    import cv2
+    return _zbar_decode_gray(cv2.cvtColor(im, cv2.COLOR_BGR2GRAY))
+
+
+# ---------- Monitor CN serial: reformat barcode (ไม่มี dash) → CN-…-A00 ----------
+# Data Matrix/Code128 ของจอ encode CN serial แบบ "ไม่มี dash" (เช่น CN0YKH877287273RFUCIA00 หรือ
+# CN07C2R47287233DCVTM ที่ไม่มี A00). segments = CN-[6]-[5]-[3]-[4]-(A00)?
+_CN_BARCODE_RE = re.compile(r"^CN([A-Z0-9]{6})([A-Z0-9]{5})([A-Z0-9]{3})([A-Z0-9]{4})(A00)?$")
+
+
+def _reformat_cn(s: str) -> str:
+    """barcode CN serial (ไม่มี dash) → 'CN-XXXXXX-XXXXX-XXX-XXXX(-A00)'. คืน '' ถ้าไม่เข้ารูป CN."""
+    m = _CN_BARCODE_RE.match(s.upper().strip())
+    if not m:
+        return ""
+    return "-".join(["CN"] + [g for g in m.groups() if g])
+
+
+def _pick_serial(codes, category) -> str:
+    """เลือก payload แรกที่ valid: กรอง CBA (bank asset tag) + validate ตาม category. '' ถ้าไม่มี."""
+    for raw in codes:
+        cand = raw.upper().strip()
+        if not cand or ACCESSORY_ASSET_BARCODE_RE.search(cand):
+            continue
+        if category == "monitor":
+            cn = _reformat_cn(cand)   # เลือกเฉพาะ payload รูป CN (ทิ้ง Service Tag 7-char + 'A00' เปล่า)
+            if cn:
+                return cn
+        elif category in ("pc", "donate"):
+            if _valid_dell_tag(cand):
+                return cand
+        else:  # accessory
+            v = extract_serial_accessory(cand)
+            if v and not ACCESSORY_ASSET_BARCODE_RE.search(v):
+                return v
+    return ""
+
+
+def read_serial_barcode(img_path, category, timeout_ms: int = 2000) -> str:
+    """อ่าน S/N จากโค้ดบนป้าย → กรอง CBA asset tag + validate ตาม category.
+
+    pc/donate → Dell service tag (`_valid_dell_tag`: 7-char alnum, ≥1 alpha+≥1 digit, ไม่อยู่ blocklist)
+                — laptop=Data Matrix (pylibdmtx), desktop=Code128 (pyzbar/ZBar)
+    monitor   → CN serial (`_reformat_cn`) จาก Data Matrix/Code128 — reformat ใส่ dash; ถ้า raw ไม่เจอ
+                ลอง **rotation sweep** (1D จอมักเอียง เช่น 20.jpg ที่ +6°)
+    accessory → ผ่าน `extract_serial_accessory` shape (numeric/labeled, ไม่ใช่ CBA)
+    คืน '' ถ้าไม่มีโค้ด valid → caller fallback `extract_serial` (OCR) + remark "ocr".
+
+    เรียง decoder แบบ lazy: **ZBar (เร็ว ~0.03s) ก่อน** — เจอแล้วข้าม Data Matrix (ช้า ~2s) ได้.
+    ปลอดภัยกับ laptop: ZBar คืน CBA/QR-string ที่ไม่ผ่าน validate → fall through ไป Data Matrix. cv2 ปิดท้าย.
+    """
+    im = _imread_unicode(img_path)
+    if im is None:
+        return ""
+    hit = (_pick_serial(_decode_zbar(im), category)
+           or _pick_serial(_decode_datamatrix(im, timeout_ms), category)
+           or _pick_serial(_decode_cv2_codes(im), category))
+    if hit:
+        return hit
+    if category == "monitor":   # 1D barcode จอมักเอียง → upscale 2x + ลองหลายมุม
+        return _read_barcode_rotated(im, category)
+    return ""
+
+
+def _read_barcode_rotated(im, category) -> str:
+    """upscale 2x + ZBar ที่มุม ±3..±12° — กู้ 1D barcode จอที่เอียง (cv2.barcode/raw อ่านไม่ออก)."""
+    import cv2
+    gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+    h, w = gray.shape
+    for ang in (6, -6, 9, -9, 3, -3, 12, -12):
+        mat = cv2.getRotationMatrix2D((w / 2, h / 2), ang, 1.0)
+        rot = cv2.warpAffine(gray, mat, (w, h), flags=cv2.INTER_CUBIC, borderValue=255)
+        hit = _pick_serial(_zbar_decode_gray(rot), category)
+        if hit:
+            return hit
+    return ""
+
+
 def parse_filename(name: str) -> dict:
     out = {"batch_id": "", "photo_date": "", "photo_index": 0, "pc_range": ""}
     if (m := BATCH_RE.search(name)):
@@ -764,7 +914,7 @@ def main() -> int:
     with out_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
-            "photo_index", "filename", "pc_no", "serial_no",
+            "photo_index", "filename", "pc_no", "serial_no", "serial_source",
             "batch_id", "photo_date", "pc_range",
             "mean_confidence", "line_count", "warnings",
         ])
@@ -777,7 +927,7 @@ def main() -> int:
                     raw = None
                     joined, mean_conf, line_count = ocr_with_rotation(engine, img, category)
             except Exception as e:  # noqa: BLE001
-                writer.writerow([0, img.name, "", "", "", "", "", "", 0, 0, f"OCR error: {e}"])
+                writer.writerow([0, img.name, "", "", "ocr", "", "", "", "", 0, f"OCR error: {e}"])
                 if progress_json:
                     print(json.dumps({
                         "event": "row", "i": i, "total": len(images),
@@ -788,6 +938,14 @@ def main() -> int:
 
             meta = parse_filename(img.name)
             serial = extract_serial(joined, category)
+            # Barcode-first Serial (pc + donate + monitor): Dell barcode แม่นกว่า OCR — laptop=Data Matrix(ECC),
+            # desktop/laptop=Code128(ZBar), monitor=CN serial (Data Matrix/Code128 → reformat dash).
+            # แก้ OCR misread (6X0F453, O↔0). อ่านไม่ออก → คง OCR + remark. accessory ตัด (โค้ด = CBA → 0/40)
+            serial_source = "ocr"
+            if category in ("pc", "donate", "monitor"):
+                bc = read_serial_barcode(img, category)
+                if bc:
+                    serial, serial_source = bc, "barcode"
             if category == "donate":
                 # DonateMore: เลข typed/printed (Notepad "NO.x" / สติกเกอร์ "Donate n") OCR อ่านครบ
                 # → ใช้เลย + ข้าม model/Tesseract (เร็ว ~3-4x). ถ้าไม่เจอ = สติกเกอร์เขียนมือไทย
@@ -822,7 +980,7 @@ def main() -> int:
                 with_sn += 1
 
             writer.writerow([
-                meta["photo_index"], img.name, pc_no, serial,
+                meta["photo_index"], img.name, pc_no, serial, serial_source,
                 meta["batch_id"], meta["photo_date"], meta["pc_range"],
                 f"{mean_conf:.3f}", line_count, "; ".join(warnings_list),
             ])
@@ -836,6 +994,7 @@ def main() -> int:
                     "filename": img.name,
                     "pc_no": pc_no,
                     "serial_no": serial,
+                    "serial_source": serial_source,
                     "batch_id": meta["batch_id"],
                     "photo_date": meta["photo_date"],
                     "pc_range": meta["pc_range"],

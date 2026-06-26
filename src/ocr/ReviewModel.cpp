@@ -125,6 +125,7 @@ bool ReviewModel::loadCsv(const std::string& path) {
         r.filename = fieldAt(fields, header, "filename");
         r.pcNo = fieldAt(fields, header, "pc_no");
         r.serialNo = fieldAt(fields, header, "serial_no");
+        r.serialSource = fieldAt(fields, header, "serial_source");
 
         // resume case: original_* columns ที่เคย save ออกมา
         auto orig = fieldAt(fields, header, "original_pc_no");
@@ -144,11 +145,13 @@ bool ReviewModel::saveCsv(const std::string& path) const {
     std::ofstream out(std::filesystem::u8path(path), std::ios::trunc);
     if (!out.is_open()) return false;
 
-    out << "filename,pc_no,serial_no,original_pc_no,original_serial_no,verified,notes\n";
+    out << "filename,pc_no,serial_no,serial_source,"
+           "original_pc_no,original_serial_no,verified,notes\n";
     for (const auto& r : rows_) {
         out << escapeCsv(r.filename) << ','
             << escapeCsv(r.pcNo) << ','
             << escapeCsv(r.serialNo) << ','
+            << escapeCsv(r.serialSource) << ','
             << escapeCsv(r.originalPcNo) << ','
             << escapeCsv(r.originalSerialNo) << ','
             << (r.verified ? "true" : "false") << ','

@@ -168,6 +168,40 @@ TEST(ReviewModel, SaveAndReload_PreservesAllFields) {
     EXPECT_TRUE(r0.verified);
 }
 
+// =================== serial_source remark (barcode vs ocr) ===================
+
+TEST(ReviewModel, SerialSource_RoundTrips) {
+    // bulk_extract.py เขียนคอลัมน์ serial_source ("barcode"/"ocr") — remark ที่มาของ serial
+    const std::string csv =
+        "filename,pc_no,serial_no,serial_source,batch_id,photo_date,pc_range,"
+        "mean_confidence,line_count,warnings\n"
+        "a.jpg,315,6X0F453,barcode,,2026-05-17,,0.8,8,\n"
+        "b.jpg,316,JH681X2,ocr,,2026-05-17,,0.8,8,\n";
+    auto path = writeTempCsv(csv);
+
+    ReviewModel a;
+    ASSERT_TRUE(a.loadCsv(path.string()));
+    ASSERT_EQ(a.size(), 2u);
+    EXPECT_EQ(a.at(0)->serialSource, "barcode");
+    EXPECT_EQ(a.at(1)->serialSource, "ocr");
+
+    // save → reload: serial_source ต้องคงอยู่ (persist ลง ground_truth.csv)
+    auto outPath = fs::temp_directory_path() / "autopilot_review_src.csv";
+    ASSERT_TRUE(a.saveCsv(outPath.string()));
+    ReviewModel b;
+    ASSERT_TRUE(b.loadCsv(outPath.string()));
+    EXPECT_EQ(b.at(0)->serialSource, "barcode");
+    EXPECT_EQ(b.at(1)->serialSource, "ocr");
+}
+
+TEST(ReviewModel, SerialSource_AbsentColumn_DefaultsEmpty) {
+    // CSV เก่า/plain ที่ไม่มีคอลัมน์ serial_source → serialSource = "" (backward-compat, ไม่พัง)
+    auto path = writeTempCsv("filename,pc_no,serial_no\nimg.jpg,1,ABC1234\n");
+    ReviewModel model;
+    ASSERT_TRUE(model.loadCsv(path.string()));
+    EXPECT_EQ(model.at(0)->serialSource, "");
+}
+
 // =================== navigation helpers ===================
 
 TEST(ReviewModel, NextUnverified_SkipsVerified) {

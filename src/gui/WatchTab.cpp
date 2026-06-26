@@ -332,6 +332,7 @@ void WatchTab::onWorkerStdout() {
                 info.filename = j.value("filename", "");
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
+                info.serialSource = j.value("serial_source", "");
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
                 info.photoIndex = j.value("photo_index", 0);
