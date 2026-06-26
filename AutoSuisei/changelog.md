@@ -7,7 +7,7 @@ updated: 2026-06-26
 
 [[index]] · [[Home]] · รายละเอียดแต่ละครั้งดู `logs/`
 
-> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.0** (build แล้ว; push/release = Phase 2b หลัง gh login)
+> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.0** ✅ [released บน GitHub](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.0)
 
 - **1.0.0** (2026-06-26) — **Monitor barcode-first CN serial** (Data Matrix + 1D Code128 rotation sweep, ~60%) + **version UI ซ้ายล่าง** + **GitHub auto-updater** (Check/Update, partial update-package, tokenless) + single-source version. → [[logs/2026-06-26-v1.0.0-updater-monitor]]
 - **0.9.7** (2026-06-26) — Barcode-first Serial เพิ่ม **Code128** (`pyzbar`/ZBar) สำหรับ desktop + ขยายไป `donate`; lazy ZBar→DataMatrix→cv2; แก้ OCR `O↔0` (วัด 8/8 ถูก). → [[logs/2026-06-26-barcode-first-serial]]

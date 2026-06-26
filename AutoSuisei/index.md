@@ -9,7 +9,7 @@ updated: 2026-06-26
 
 | | |
 |---|---|
-| **เวอร์ชันปัจจุบัน** | **v1.0.0** (build แล้ว; push + GitHub release = Phase 2b หลัง `gh auth login`) |
+| **เวอร์ชันปัจจุบัน** | **v1.0.0** ✅ released ([GitHub release](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.0) — installer + update-package.zip) |
 | **โปรเจกต์** | AutoSuisei (เดิม AutoPilot) — OCR ดึง No. + Dell serial จากภาพถ่าย → review → rename |
 | **source repo** | `C:\Users\hello\Documents\AutoPilot` · remote `github.com/helloshinee002-cell/AutoSuisei` |
 

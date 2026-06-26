@@ -12,7 +12,7 @@ updated: 2026-06-26
 ## สถานะ (ณ 2026-06-26)
 - **เวอร์ชัน**: **v1.0.0** — Monitor barcode CN serial + version UI (ซ้ายล่าง) + GitHub auto-updater (Check/Update) (build `AutoSuisei-Setup-1.0.0.exe`)
   - ไล่จาก v0.9.0 (rebrand) → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) → **1.0.0** monitor CN + updater
-- **Git**: branch `main` — **commit v0.9.1–1.0.0 ค้าง push** (Phase 2b: `gh auth login` → push + `gh release create v1.0.0`)
+- **Git**: branch `main` — **pushed + released v1.0.0** ✅ (https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.0 — assets: installer + update-package.zip)
 - **Remote**: https://github.com/helloshinee002-cell/AutoSuisei.git
 - **กำลังทำต่อ (ส่วนที่ 2)**: commit/push · bump 1.0.0 · monitor barcode/QR · version UI ซ้ายล่าง + Check/Update Version. Monitor No. ยังรอ retrain (recurring-loop)
 - **Wiki**: [[index]] (entry-point) · [[CLAUDE]] (กฎ + Mandatory Wiki Update) · [[changelog]] · `logs/`
