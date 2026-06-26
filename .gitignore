@@ -20,6 +20,9 @@ compile_commands.json
 # Logs
 *.log
 logs/
+# vault second-brain logs (wiki) — track ไว้ (ยกเว้นจาก logs/ ด้านบน)
+!AutoSuisei/logs/
+!AutoSuisei/logs/**
 
 # Secrets
 .env

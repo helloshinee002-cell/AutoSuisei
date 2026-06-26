@@ -32,6 +32,8 @@ public:
 
 signals:
     void currentChanged(int idx);
+    /** ผู้ใช้กดปุ่ม "Check for updates" ที่มุมซ้ายล่าง. */
+    void checkUpdateRequested();
 
 private:
     QListWidget* list_{};

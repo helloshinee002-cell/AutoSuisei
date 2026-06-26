@@ -5,7 +5,7 @@
 ; Run that PS1 first so the bundle folder exists at the expected path.
 
 #define MyAppName       "AutoSuisei"
-#define MyAppVersion    "0.9.5"
+#define MyAppVersion    "1.0.0"
 #define MyAppPublisher  "hello"
 #define MyAppExeName    "AutoSuisei.exe"
 ; เปลี่ยน path นี้ถ้า bundle อยู่ที่อื่น — make_bundle.ps1 ตั้งชื่อตาม timestamp

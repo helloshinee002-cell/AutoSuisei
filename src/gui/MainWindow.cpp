@@ -3,6 +3,7 @@
 #include <QFrame>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QMessageBox>
 #include <QScreen>
 #include <QScrollArea>
 #include <QStackedWidget>
@@ -12,6 +13,7 @@
 #include "OcrTab.h"
 #include "ReviewTab.h"
 #include "SidebarNav.h"
+#include "Updater.h"
 #include "WatchTab.h"
 #include "player/IPlayer.h"
 #include "recorder/IRecorder.h"
@@ -110,6 +112,38 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
     };
     connect(ocrTab, &OcrTab::sendToReviewRequested, this, toReview);
     connect(watchTab, &WatchTab::sendToReviewRequested, this, toReview);
+
+    // ----- Check Version / Update (GitHub Releases) -----
+    auto* updater = new Updater(this);
+    connect(sidebar, &SidebarNav::checkUpdateRequested, this, [this, updater]() {
+        this->statusBar()->showMessage("กำลังเช็คอัปเดตจาก GitHub…");
+        updater->checkLatest();
+    });
+    connect(updater, &Updater::upToDate, this, [this](const QString& v) {
+        this->statusBar()->showMessage("เป็นเวอร์ชันล่าสุดแล้ว");
+        QMessageBox::information(this, "Check for updates",
+                                 QString("ใช้เวอร์ชันล่าสุดอยู่แล้ว (v%1)").arg(v));
+    });
+    connect(updater, &Updater::updateAvailable, this,
+            [this, updater](const QString& tag, const QString& notes) {
+                const QString body =
+                    QString("มีเวอร์ชันใหม่: %1\nกำลังใช้: v%2\n\n%3\n\nต้องการอัปเดตเลยไหม?")
+                        .arg(tag, Updater::currentVersion(), notes.left(600));
+                if (QMessageBox::question(this, "Update available", body) == QMessageBox::Yes) {
+                    this->statusBar()->showMessage("กำลังดาวน์โหลดอัปเดต…");
+                    updater->downloadAndApply();
+                }
+            });
+    connect(updater, &Updater::checkFailed, this, [this](const QString& msg) {
+        this->statusBar()->showMessage("เช็คอัปเดตไม่สำเร็จ");
+        QMessageBox::warning(this, "Check for updates", msg);
+    });
+    connect(updater, &Updater::downloadProgress, this, [this](qint64 r, qint64 t) {
+        if (t > 0) this->statusBar()->showMessage(QString("กำลังดาวน์โหลดอัปเดต %1%").arg(100 * r / t));
+    });
+    connect(updater, &Updater::applyFailed, this, [this](const QString& msg) {
+        QMessageBox::critical(this, "Update", msg);
+    });
 }
 
 MainWindow::~MainWindow() {

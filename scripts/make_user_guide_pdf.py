@@ -139,7 +139,7 @@ def build():
     pdf.ln(40)
     pdf.set_font("Tahoma", "", 12)
     pdf.set_text_color(*DARK_TEXT)
-    pdf.cell(0, 7, "User Guide  •  Version 0.9.5", align="C",
+    pdf.cell(0, 7, "User Guide  •  Version 1.0.0", align="C",
               new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Tahoma", "", 10)
     pdf.set_text_color(*TEXT_DIM)
@@ -162,6 +162,8 @@ def build():
     pdf.bullet("Folder Watch — auto-process ไฟล์ใหม่ที่มาเข้าโฟลเดอร์")
     pdf.bullet("Review tab — ดูภาพ + แก้ค่า + verify + เปลี่ยนชื่อไฟล์")
     pdf.bullet("Rotation fallback — รองรับภาพที่ถ่ายตะแคง/หมุน (90°/180°/270°)")
+    pdf.bullet("Barcode-first Serial (PC + Donate) — อ่าน Dell barcode ก่อน (Data Matrix สำหรับ laptop, "
+               "Code128 สำหรับ desktop); แม่นกว่า OCR แก้ปัญหาอ่านสับสน O↔0; อ่านไม่ออกใช้ OCR + คอลัมน์ Src")
     pdf.bullet("Self-contained installer — ฝัง Python + rapidocr + onnxruntime")
 
     pdf.h2("Requirements")
@@ -171,7 +173,7 @@ def build():
 
     pdf.h2("การติดตั้ง")
     pdf.body(
-        "1. ดาวน์โหลด AutoSuisei-Setup-0.9.5.exe จาก GitHub Releases\n"
+        "1. ดาวน์โหลด AutoSuisei-Setup-1.0.0.exe จาก GitHub Releases\n"
         "2. ดับเบิ้ลคลิกไฟล์ติดตั้ง (อาจต้องสิทธิ์ admin)\n"
         "3. เปิดโปรแกรมจากเมนู Start → AutoSuisei"
     )

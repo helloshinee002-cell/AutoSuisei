@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(AutoPilot
-    VERSION 0.1.0
+    VERSION 1.0.0
     DESCRIPTION "Windows Automation Suite — Macro Recorder + Web Recorder + OCR"
     LANGUAGES CXX
 )
+# ^ PROJECT_VERSION = single source of truth ของ app version (inject เข้า C++ ผ่าน APP_VERSION
+#   ใน src/gui/CMakeLists.txt). bump ที่นี่ แล้ว sync ให้ตรงที่ installer/AutoSuisei.iss + scripts/make_user_guide_pdf.py
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +25,7 @@ if(MSVC)
 endif()
 
 # Dependencies (resolved by vcpkg manifest mode)
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Gui)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Gui Network)
 find_package(Tesseract CONFIG REQUIRED)
 find_package(Leptonica CONFIG REQUIRED)
 find_package(OpenCV CONFIG REQUIRED)

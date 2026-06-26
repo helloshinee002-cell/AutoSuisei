@@ -16,6 +16,9 @@ qt_add_executable(AutoSuisei
     ReviewTab.cpp
     WatchTab.h
     WatchTab.cpp
+    Updater.h
+    Updater.cpp
+    VersionCompare.h
     AutoSuisei.rc
     resources.qrc
 )
@@ -24,6 +27,7 @@ target_link_libraries(AutoSuisei PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Gui
+    Qt6::Network
     autopilot_core
     autopilot_ocr
     autopilot_storage
@@ -39,6 +43,7 @@ target_link_libraries(AutoSuisei PRIVATE
 # overrides this if set.
 target_compile_definitions(AutoSuisei PRIVATE
     AUTOPILOT_SCRIPTS_DIR="${CMAKE_SOURCE_DIR}/scripts"
+    APP_VERSION="${PROJECT_VERSION}"
 )
 
 set_target_properties(AutoSuisei PROPERTIES

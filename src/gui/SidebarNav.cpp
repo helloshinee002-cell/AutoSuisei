@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 namespace autopilot::gui {
@@ -91,10 +92,34 @@ SidebarNav::SidebarNav(QWidget* parent) : QWidget(parent) {
     list_->setSelectionMode(QAbstractItemView::SingleSelection);
     list_->setUniformItemSizes(false);
     list_->setSpacing(0);
-    root->addWidget(list_, 1);
+    root->addWidget(list_, 1);  // stretch=1 → footer ด้านล่างถูกดันชิดล่างเสมอ
+
+    // ----- footer (ซ้ายล่าง): version + Check for updates -----
+    auto* footer = new QWidget();
+    auto* fl = new QVBoxLayout(footer);
+    fl->setContentsMargins(12, 8, 12, 12);
+    fl->setSpacing(6);
+#ifdef APP_VERSION
+    auto* ver = new QLabel("v" APP_VERSION);
+#else
+    auto* ver = new QLabel("v?");
+#endif
+    ver->setObjectName("sidebarVersion");
+    ver->setStyleSheet("color:#6B7B78; font-size:11px; background:transparent;");
+    auto* upBtn = new QPushButton("Check for updates");
+    upBtn->setObjectName("checkUpdateBtn");
+    upBtn->setCursor(Qt::PointingHandCursor);
+    upBtn->setStyleSheet(
+        "QPushButton#checkUpdateBtn { color:#9FB4AF; background:#0F1416;"
+        " border:1px solid #1E2A28; border-radius:6px; padding:5px 8px; font-size:11px; }"
+        "QPushButton#checkUpdateBtn:hover { color:#E5F4F0; border-color:#10B981; }");
+    fl->addWidget(ver);
+    fl->addWidget(upBtn);
+    root->addWidget(footer);
 
     connect(list_, &QListWidget::currentRowChanged,
             this, &SidebarNav::currentChanged);
+    connect(upBtn, &QPushButton::clicked, this, &SidebarNav::checkUpdateRequested);
 }
 
 int SidebarNav::addItem(const QString& code, const QString& label,
