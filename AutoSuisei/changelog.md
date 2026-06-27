@@ -7,8 +7,9 @@ updated: 2026-06-27
 
 [[index]] · [[Home]] · รายละเอียดแต่ละครั้งดู `logs/`
 
-> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.1** ✅ [released บน GitHub](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.1)
+> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.2** ✅ [released บน GitHub](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.2)
 
+- **1.0.2** (feat+fix, 2026-06-27) — Watch: คอลัมน์ **Confidence → Category** · monitor **CN- ชนะ Service Tag เสมอ** ใน best-of-N (`is_cn` tier เหนือ barcode) · Review: ลบ Load CSV/Images folder/CSV-label → **รูปใหญ่ขึ้น** (splitter 1:2) · OCR ปุ่ม Donate → "Donate PC&Laptop". → [[logs/2026-06-27-v1.0.2-watch-category-cn]]
 - **1.0.1** (feat, 2026-06-27) — **Folder Watch multi-category (best-of-N)**: ติ๊กเลือกหมวด (PC&Laptop/Monitor/Accessory/Donate, default ติ๊กครบ) — แต่ละภาพรันทุกหมวดที่ติ๊กแล้วเลือกผลดีสุด `(has_serial, barcode, has_no, conf)`; `ocr_worker.py` รับ `--category` แบบ CSV. → [[logs/2026-06-27-v1.0.1-watch-multicat]]
 - **1.0.0** (fix, 2026-06-26) — แก้ updater **"TLS initialization failed"**: deploy Qt `tls` plugin (qopensslbackend/qschannelbackend); re-upload assets ทับ v1.0.0. → [[logs/2026-06-26-fix-tls-plugin]]
 - **1.0.0** (2026-06-26) — **Monitor barcode-first CN serial** (Data Matrix + 1D Code128 rotation sweep, ~60%) + **version UI ซ้ายล่าง** + **GitHub auto-updater** (Check/Update, partial update-package, tokenless) + single-source version. → [[logs/2026-06-26-v1.0.0-updater-monitor]]
