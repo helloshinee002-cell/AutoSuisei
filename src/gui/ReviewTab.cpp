@@ -66,36 +66,28 @@ QString sanitizeFilenameComponent(const QString& s) {
 
 ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     auto* root = new QVBoxLayout(this);
-    root->setContentsMargins(24, 0, 24, 12);  // top 0 → table+image ชิดขอบบน
+    root->setContentsMargins(24, 12, 24, 12);
     root->setSpacing(8);
 
-    // ----- Header (created here, ADDED AT THE BOTTOM — image-first layout) -----
+    // ----- Header -----
     auto* title = new QLabel("Review and Rename");
     title->setObjectName("tabTitle");
     auto* subtitle = new QLabel("Verify, edit, and rename extracted records");
     subtitle->setObjectName("tabSubtitle");
+    root->addWidget(title);
+    root->addWidget(subtitle);
 
-    // ----- Top button row -----
-    auto* topRow = new QHBoxLayout();
-    topRow->setSpacing(10);
+    // ----- Action buttons (created here; placed in the bottom action row) -----
     saveBtn_ = new QPushButton("Save ground truth");
     saveBtn_->setObjectName("primaryButton");
     saveBtn_->setEnabled(false);
     clearBtn_ = new QPushButton("Clear");
     clearBtn_->setToolTip("รีเซ็ตข้อมูลทั้งหมด — ภาพ, ฟอร์ม");
-    topRow->addStretch();
-    topRow->addWidget(saveBtn_);
-    topRow->addWidget(clearBtn_);
 
-    // ----- Folder info -----
-    auto* infoRow = new QHBoxLayout();
+    // ----- Folder + Verified + progress (created here; ADDED AT THE BOTTOM) -----
     auto* folderLbl = new QLabel("Folder:");
     folderLbl->setObjectName("dimLabel");
     folderLabel_ = new QLabel("(none)");
-    infoRow->addWidget(folderLbl);
-    infoRow->addWidget(folderLabel_, 1);
-
-    // ----- Progress bar -----
     progressLabel_ = new QLabel("Verified 0 / 0");
     progressLabel_->setObjectName("dimLabel");
     progressBar_ = new QProgressBar();
@@ -193,16 +185,18 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     renameRow->addWidget(renameSerialCheck_);
     renameRow->addWidget(renameNotesCheck_);
     renameRow->addStretch();
+    // ล่างขวา เรียงแถวเดียว: Save ground truth → Clear → Rename images
+    renameRow->addWidget(saveBtn_);
+    renameRow->addWidget(clearBtn_);
     renameRow->addWidget(renameBtn_);
     root->addLayout(renameRow);
 
-    // ----- Header block — created above, ADDED HERE (bottom) so the table +
-    // image sit flush to the top edge and the preview is as large as possible -----
-    root->addWidget(title);
-    root->addWidget(subtitle);
-    root->addLayout(topRow);
+    // ----- Bottom info: Folder (ซ้าย) + Verified (ขวา) แถวเดียว → progress bar -----
+    auto* infoRow = new QHBoxLayout();
+    infoRow->addWidget(folderLbl);
+    infoRow->addWidget(folderLabel_, 1);
+    infoRow->addWidget(progressLabel_);
     root->addLayout(infoRow);
-    root->addWidget(progressLabel_);
     root->addWidget(progressBar_);
 
     setStatus("Ready — send from OCR / Watch tab");
