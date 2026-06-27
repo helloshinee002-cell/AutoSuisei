@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFont>
 #include <QFontDatabase>
+#include <QIcon>
 #include <QStandardPaths>
 
 #include "MainWindow.h"
@@ -49,6 +50,7 @@ int main(int argc, char* argv[]) {
     QApplication::setOrganizationName("AutoSuisei");
     QApplication::setApplicationName("AutoSuisei");
     QApplication app(argc, argv);
+    app.setWindowIcon(QIcon(":/AutoSuisei.ico"));  // titlebar (ซ้ายบน) + taskbar = exe icon
     applyTheme(app);
 
     const auto dir = dataDir();

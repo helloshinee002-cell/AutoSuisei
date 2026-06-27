@@ -3,5 +3,6 @@
     <qresource prefix="/">
         <file>theme.qss</file>
         <file>resources/fonts/ADLaMDisplay-Regular.ttf</file>
+        <file alias="AutoSuisei.ico">../../installer/AutoSuisei.ico</file>
     </qresource>
 </RCC>
