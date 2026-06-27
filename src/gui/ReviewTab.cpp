@@ -47,6 +47,15 @@ QString srcLabel(const ocr::ReviewRow& r) {
     return QString::fromStdString(r.serialSource);
 }
 
+// flag ("pc"/"monitor"/…) → ป้ายหมวดอ่านง่าย (mirror WatchTab::watchCategoryLabel)
+QString categoryLabel(const std::string& flag) {
+    if (flag == "pc") return "PC&Laptop";
+    if (flag == "monitor") return "Monitor";
+    if (flag == "accessory") return "Accessory";
+    if (flag == "donate") return "Donate";
+    return QString::fromStdString(flag);
+}
+
 QString sanitizeFilenameComponent(const QString& s) {
     QString out = s.trimmed();
     out.replace(QRegularExpression(R"([\\/:*?"<>|])"), "_");
@@ -57,16 +66,14 @@ QString sanitizeFilenameComponent(const QString& s) {
 
 ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     auto* root = new QVBoxLayout(this);
-    root->setContentsMargins(24, 12, 24, 12);
+    root->setContentsMargins(24, 0, 24, 12);  // top 0 → table+image ชิดขอบบน
     root->setSpacing(8);
 
-    // ----- Header -----
+    // ----- Header (created here, ADDED AT THE BOTTOM — image-first layout) -----
     auto* title = new QLabel("Review and Rename");
     title->setObjectName("tabTitle");
     auto* subtitle = new QLabel("Verify, edit, and rename extracted records");
     subtitle->setObjectName("tabSubtitle");
-    root->addWidget(title);
-    root->addWidget(subtitle);
 
     // ----- Top button row -----
     auto* topRow = new QHBoxLayout();
@@ -79,7 +86,6 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     topRow->addStretch();
     topRow->addWidget(saveBtn_);
     topRow->addWidget(clearBtn_);
-    root->addLayout(topRow);
 
     // ----- Folder info -----
     auto* infoRow = new QHBoxLayout();
@@ -88,7 +94,6 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     folderLabel_ = new QLabel("(none)");
     infoRow->addWidget(folderLbl);
     infoRow->addWidget(folderLabel_, 1);
-    root->addLayout(infoRow);
 
     // ----- Progress bar -----
     progressLabel_ = new QLabel("Verified 0 / 0");
@@ -98,15 +103,13 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     progressBar_->setValue(0);
     progressBar_->setTextVisible(false);
     progressBar_->setFixedHeight(8);
-    root->addWidget(progressLabel_);
-    root->addWidget(progressBar_);
 
     // ----- Splitter: table left, preview+form right -----
     auto* split = new QSplitter(Qt::Horizontal, this);
 
     table_ = new QTableWidget(0, kCountColumns);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Src", "Date", "OK"});
+        {"#", "File", "No.", "Serial", "Src", "Category", "OK"});
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->setSelectionMode(QAbstractItemView::SingleSelection);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -117,7 +120,7 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(2, 80);
     table_->setColumnWidth(3, 140);
     table_->setColumnWidth(4, 70);   // Src (Barcode/OCR)
-    table_->setColumnWidth(5, 100);  // Date
+    table_->setColumnWidth(5, 110);  // Category
     table_->setColumnWidth(6, 44);   // OK
     split->addWidget(table_);
 
@@ -145,9 +148,6 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     form->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     pcEdit_ = new QLineEdit();
     serialEdit_ = new QLineEdit();
-    batchEdit_ = new QLineEdit();
-    batchEdit_->setReadOnly(true);
-    batchEdit_->setToolTip("Batch ID (จาก OCR) — read only");
     dateEdit_ = new QLineEdit();
     dateEdit_->setReadOnly(true);
     dateEdit_->setToolTip("Photo date (จาก OCR) — read only");
@@ -157,7 +157,6 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     originalLabel_->setObjectName("originalLabel");
     form->addRow("No.:", pcEdit_);
     form->addRow("Serial:", serialEdit_);
-    form->addRow("Batch:", batchEdit_);
     form->addRow("Date:", dateEdit_);
     form->addRow("Notes:", notesEdit_);
     form->addRow("", verifiedCheck_);
@@ -197,6 +196,15 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     renameRow->addWidget(renameBtn_);
     root->addLayout(renameRow);
 
+    // ----- Header block — created above, ADDED HERE (bottom) so the table +
+    // image sit flush to the top edge and the preview is as large as possible -----
+    root->addWidget(title);
+    root->addWidget(subtitle);
+    root->addLayout(topRow);
+    root->addLayout(infoRow);
+    root->addWidget(progressLabel_);
+    root->addWidget(progressBar_);
+
     setStatus("Ready — send from OCR / Watch tab");
 
     connect(saveBtn_, &QPushButton::clicked, this, &ReviewTab::onSave);
@@ -210,8 +218,7 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
             });
 
     // ----- keyboard-driven verify loop -----
-    // Enter ในช่องใดก็ได้ = Apply + Next; Tab ข้าม read-only Batch/Date
-    batchEdit_->setFocusPolicy(Qt::NoFocus);
+    // Enter ในช่องใดก็ได้ = Apply + Next; Tab ข้าม read-only Date
     dateEdit_->setFocusPolicy(Qt::NoFocus);
     setTabOrder(pcEdit_, serialEdit_);
     setTabOrder(serialEdit_, notesEdit_);
@@ -278,15 +285,15 @@ void ReviewTab::rebuildTable() {
         const auto row = *model_.at(i);
         const int r = static_cast<int>(i);
         const QString idxStr = QString("%1").arg(r + 1, 2, 10, QChar('0'));
-        const QString dateStr = (i < sourceInfos_.size())
-                                    ? QString::fromStdString(sourceInfos_[i].photoDate)
+        const QString catStr = (i < sourceInfos_.size())
+                                    ? categoryLabel(sourceInfos_[i].category)
                                     : QString();
         table_->setItem(r, 0, makeItem(idxStr));
         table_->setItem(r, 1, makeItem(QString::fromStdString(row.filename)));
         table_->setItem(r, 2, makeItem(QString::fromStdString(row.pcNo)));
         table_->setItem(r, 3, makeItem(QString::fromStdString(row.serialNo)));
         table_->setItem(r, 4, makeItem(srcLabel(row)));
-        table_->setItem(r, 5, makeItem(dateStr));
+        table_->setItem(r, 5, makeItem(catStr));
         table_->setItem(r, 6, makeItem(row.verified ? "OK" : ""));
     }
     updateStatus();
@@ -303,10 +310,8 @@ void ReviewTab::selectRow(int row) {
     pcEdit_->setText(QString::fromStdString(r.pcNo));
     serialEdit_->setText(QString::fromStdString(r.serialNo));
     if (static_cast<std::size_t>(row) < sourceInfos_.size()) {
-        batchEdit_->setText(QString::fromStdString(sourceInfos_[row].batchId));
         dateEdit_->setText(QString::fromStdString(sourceInfos_[row].photoDate));
     } else {
-        batchEdit_->clear();
         dateEdit_->clear();
     }
     notesEdit_->setText(QString::fromStdString(r.notes));
@@ -409,7 +414,6 @@ void ReviewTab::onClear() {
     // imagesFolder_ ไม่ล้าง — ถือว่า user อาจ send ชุดใหม่ที่ folder เดิม
     pcEdit_->clear();
     serialEdit_->clear();
-    batchEdit_->clear();
     dateEdit_->clear();
     notesEdit_->clear();
     verifiedCheck_->setChecked(false);

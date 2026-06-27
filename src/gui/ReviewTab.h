@@ -89,7 +89,6 @@ private:
     double imageZoom_{0.0};    // 0 = fit-to-pane, >0 = scale factor ของ fullPixmap_
     QLineEdit* pcEdit_{};
     QLineEdit* serialEdit_{};
-    QLineEdit* batchEdit_{};
     QLineEdit* dateEdit_{};
     QLineEdit* notesEdit_{};
     QCheckBox* verifiedCheck_{};
