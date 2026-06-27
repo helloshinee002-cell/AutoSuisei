@@ -1,7 +1,9 @@
 #include "WatchTab.h"
 
+#include <algorithm>
 #include <filesystem>
 
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileDialog>
@@ -30,6 +32,15 @@ namespace autopilot::gui {
 namespace {
 
 constexpr int kCols = 6;
+
+struct CatDef { const char* label; const char* flag; };
+// ลำดับต้องตรงกับ index ของ catChecks_ (push ตามลำดับนี้ใน constructor)
+constexpr CatDef kCats[] = {
+    {"PC&&Laptop", "pc"},      // && → literal & (mnemonic escape)
+    {"Monitor", "monitor"},
+    {"Accessory", "accessory"},
+    {"Donate", "donate"},
+};
 
 bool looksLikeImage(const QString& path) {
     static const QStringList exts = {
@@ -116,6 +127,22 @@ WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
     folderRow->addWidget(liveLabel_);
     root->addLayout(folderRow);
 
+    // ----- Category checkboxes -----
+    auto* catRow = new QHBoxLayout();
+    catRow->setSpacing(12);
+    auto* catLbl = new QLabel("Categories:");
+    catLbl->setObjectName("dimLabel");
+    catRow->addWidget(catLbl);
+    for (const auto& def : kCats) {
+        auto* cb = new QCheckBox(def.label);
+        cb->setChecked(true);  // default: ติ๊กครบทั้ง 4 (พร้อมอ่านโฟลเดอร์ปนหลายชนิด)
+        catChecks_.push_back(cb);
+        catRow->addWidget(cb);
+        connect(cb, &QCheckBox::toggled, this, &WatchTab::updateWatchEnabled);
+    }
+    catRow->addStretch();
+    root->addLayout(catRow);
+
     // ----- KPI cards row -----
     auto* kpiRow = new QHBoxLayout();
     kpiRow->setSpacing(12);
@@ -183,6 +210,25 @@ void WatchTab::refreshKpis() {
     if (kpiPending_) kpiPending_->setText(QString::number(pending));
 }
 
+QStringList WatchTab::selectedCategoryFlags() const {
+    QStringList out;
+    for (std::size_t i = 0; i < catChecks_.size(); ++i)
+        if (catChecks_[i]->isChecked())
+            out << QString::fromLatin1(kCats[i].flag);
+    return out;
+}
+
+void WatchTab::updateWatchEnabled() {
+    if (watching_) { watchBtn_->setEnabled(true); return; }
+    const bool anyCat = std::any_of(catChecks_.begin(), catChecks_.end(),
+                                    [](QCheckBox* c) { return c->isChecked(); });
+    watchBtn_->setEnabled(!folder_.isEmpty() && anyCat);
+}
+
+void WatchTab::setCategoryBoxesEnabled(bool enabled) {
+    for (auto* c : catChecks_) c->setEnabled(enabled);
+}
+
 void WatchTab::onChooseFolder() {
     const auto path = QFileDialog::getExistingDirectory(
         this, "Choose folder to watch", folder_);
@@ -190,7 +236,7 @@ void WatchTab::onChooseFolder() {
     if (watching_) stopWorker();
     folder_ = path;
     folderLabel_->setText(path);
-    watchBtn_->setEnabled(true);
+    updateWatchEnabled();
     seenFiles_.clear();
     QDir dir(folder_);
     for (const auto& entry : dir.entryInfoList(QDir::Files)) {
@@ -208,6 +254,8 @@ void WatchTab::onToggleWatch() {
         watchBtn_->setText("Start watching");
         liveLabel_->setText("● Idle");
         liveLabel_->setStyleSheet("color: #6B7B78; font-size: 12px;");
+        setCategoryBoxesEnabled(true);
+        updateWatchEnabled();
         setStatus("Stopped");
     } else {
         if (folder_.isEmpty()) return;
@@ -223,6 +271,13 @@ void WatchTab::startWorker() {
         return;
     }
 
+    const QStringList cats = selectedCategoryFlags();
+    if (cats.isEmpty()) {
+        QMessageBox::information(this, "เลือกหมวด",
+                                 "ติ๊กอย่างน้อย 1 หมวดก่อนเริ่ม watching");
+        return;
+    }
+
     worker_ = new QProcess(this);
     worker_->setProcessChannelMode(QProcess::SeparateChannels);
     connect(worker_, &QProcess::readyReadStandardOutput,
@@ -235,7 +290,7 @@ void WatchTab::startWorker() {
             });
 
     setStatus("กำลังโหลด PaddleOCR (1-2 วินาที)…");
-    worker_->start(pythonExe(), {script});
+    worker_->start(pythonExe(), {script, "--category=" + cats.join(",")});
     if (!worker_->waitForStarted(5000)) {
         QMessageBox::critical(this, "Python not found",
                               "ไม่สามารถ start python ได้ — เช็คว่ามี python ใน PATH "
@@ -247,6 +302,7 @@ void WatchTab::startWorker() {
 
     fsWatcher_->addPath(folder_);
     watching_ = true;
+    setCategoryBoxesEnabled(false);
     watchBtn_->setText("Stop watching");
     liveLabel_->setText("● LIVE");
     liveLabel_->setStyleSheet("color: #10B981; font-size: 12px; font-weight: 600;");

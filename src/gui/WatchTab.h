@@ -6,10 +6,12 @@
 #include <QQueue>
 #include <QSet>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 #include "ocr/AssetExtractor.h"
 
+class QCheckBox;
 class QFileSystemWatcher;
 class QLabel;
 class QProcess;
@@ -58,6 +60,12 @@ private:
     void appendResult(const ocr::AssetInfo& info);
     void setStatus(const QString& text);
     void refreshKpis();
+    /** Flags ("pc","monitor",…) ของหมวดที่ติ๊กไว้ — ใช้สร้าง `--category=` arg */
+    QStringList selectedCategoryFlags() const;
+    /** เปิด/ปิดปุ่ม Start ตามเงื่อนไข (มีโฟลเดอร์ + ติ๊ก ≥1 หมวด) */
+    void updateWatchEnabled();
+    /** ล็อก/ปลดล็อก checkbox หมวด (ล็อกระหว่าง watching) */
+    void setCategoryBoxesEnabled(bool enabled);
 
     QString folder_;
     bool watching_{false};
@@ -77,6 +85,9 @@ private:
     QPushButton* watchBtn_{};
     QPushButton* clearBtn_{};
     QPushButton* sendBtn_{};
+
+    // UI — category checkboxes (index-aligned กับ kCats[] ใน .cpp)
+    std::vector<QCheckBox*> catChecks_;
 
     // UI — folder + live indicator
     QLabel* folderLabel_{};
