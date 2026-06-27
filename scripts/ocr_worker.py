@@ -138,11 +138,19 @@ def process_one(engine, img: Path, meta: dict, category: str) -> dict:
 
 def _score(r: dict) -> tuple:
     """Best-of ranking key — higher wins. Mirrors ocr_with_rotation's
-    (has_serial, has_no, conf), with a barcode-source tiebreak placed above
-    confidence: a decoded barcode is more trustworthy than OCR'd text, so when
-    two categories both yield a Serial, prefer the one read off a barcode."""
+    (has_serial, has_no, conf), with two tiebreaks above confidence:
+
+      1. a CN- monitor serial beats anything else. A monitor sticker also
+         carries a 7-char Dell Service Tag that the `pc` pipeline happily
+         decodes off its Code128 barcode; for a monitor image we must never
+         let that Service Tag win over the real CN serial. CN only ever comes
+         from the monitor pipeline (PCs have 7-char tags, accessories numeric),
+         so this lights up only for actual monitor reads — safe by construction.
+      2. a decoded barcode beats OCR'd text (barcode is more trustworthy)."""
+    s = r.get("serial_no", "")
     return (
-        1 if r.get("serial_no") else 0,
+        1 if s else 0,
+        1 if s.startswith("CN-") else 0,
         1 if r.get("serial_source") == "barcode" else 0,
         1 if r.get("pc_no") else 0,
         r.get("mean_confidence", 0.0),
@@ -223,6 +231,15 @@ def _selfcheck() -> int:
                "pc_no": "", "mean_confidence": 0.9}
     assert _score(with_no) > _score(hi_conf), "having a No. must beat conf"
     assert max([none, ocr, barcode], key=_score) is barcode
+    # monitor CN serial must outrank a Service Tag even when the Service Tag was
+    # read off a barcode and has higher confidence (best-of-N: a monitor image
+    # also runs the pc pipeline, which decodes the 7-char Service Tag).
+    cn_ocr = {"serial_no": "CN-0JF27G-FCC00-7AM-CRPB-A04",
+              "serial_source": "ocr", "pc_no": "10", "mean_confidence": 0.5}
+    stag_bc = {"serial_no": "27W2NG2", "serial_source": "barcode",
+               "pc_no": "110", "mean_confidence": 0.97}
+    assert _score(cn_ocr) > _score(stag_bc), "CN must beat Service Tag"
+    assert max([stag_bc, cn_ocr], key=_score) is cn_ocr
     assert parse_categories.__name__  # smoke: importable
     print("ocr_worker selfcheck: OK")
     return 0
