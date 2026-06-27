@@ -31,7 +31,7 @@ namespace autopilot::gui {
 
 namespace {
 
-constexpr int kCols = 6;
+constexpr int kCols = 5;
 
 struct CatDef { const char* label; const char* flag; };
 // ลำดับต้องตรงกับ index ของ catChecks_ (push ตามลำดับนี้ใน constructor)
@@ -165,7 +165,7 @@ WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
     // ----- Table -----
     table_ = new QTableWidget(0, kCols, this);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Category", "Date"});
+        {"#", "File", "No.", "Serial", "Category"});
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_->setAlternatingRowColors(true);
     table_->verticalHeader()->setVisible(false);
@@ -174,8 +174,7 @@ WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(0, 50);
     table_->setColumnWidth(2, 110);
     table_->setColumnWidth(3, 220);
-    table_->setColumnWidth(4, 100);
-    table_->setColumnWidth(5, 100);
+    table_->setColumnWidth(4, 110);
     root->addWidget(table_, 1);
 
     setStatus("Idle");
@@ -447,7 +446,6 @@ void WatchTab::appendResult(const ocr::AssetInfo& info) {
     table_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(info.serialNo)));
     table_->setItem(row, 4,
                     new QTableWidgetItem(watchCategoryLabel(info.category)));
-    table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
     table_->scrollToBottom();
     results_.push_back(info);
     sendBtn_->setEnabled(true);
