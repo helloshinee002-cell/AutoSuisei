@@ -266,6 +266,7 @@ void OcrTab::onBulkStdout() {
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
                 info.serialSource = j.value("serial_source", "");
+                info.category = categoryFlag(bulkCategory_);  // Review Category column
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
                 info.photoIndex = j.value("photo_index", 0);
