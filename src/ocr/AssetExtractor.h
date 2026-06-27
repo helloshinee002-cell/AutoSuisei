@@ -20,6 +20,7 @@ struct AssetInfo {
     std::string pcNo;        ///< จาก "no.45" / "No 6" ใน Notepad
     std::string serialNo;    ///< 7-char alphanumeric (Dell service tag pattern)
     std::string serialSource;///< "barcode" (Data Matrix) | "ocr" — ที่มาของ serialNo
+    std::string category;    ///< "pc"|"monitor"|"accessory"|"donate" — หมวดที่ best-of-N เลือก (Watch)
     std::string batchId;     ///< จาก filename "(9269)"
     std::string photoDate;   ///< "YYYY-MM-DD" จาก filename "_YYMMDD_"
     int photoIndex{0};       ///< suffix "_NNN.jpg"

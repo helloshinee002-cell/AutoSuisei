@@ -42,6 +42,16 @@ constexpr CatDef kCats[] = {
     {"Donate", "donate"},
 };
 
+/** flag ("pc"/"monitor"/…) → ป้ายอ่านง่ายสำหรับคอลัมน์ Category
+ *  (table item ใช้ & เดี่ยว — ไม่ใช่ mnemonic แบบ checkbox) */
+QString watchCategoryLabel(const std::string& flag) {
+    if (flag == "pc") return "PC&Laptop";
+    if (flag == "monitor") return "Monitor";
+    if (flag == "accessory") return "Accessory";
+    if (flag == "donate") return "Donate";
+    return QString::fromStdString(flag);
+}
+
 bool looksLikeImage(const QString& path) {
     static const QStringList exts = {
         ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"};
@@ -155,7 +165,7 @@ WatchTab::WatchTab(QWidget* parent) : QWidget(parent) {
     // ----- Table -----
     table_ = new QTableWidget(0, kCols, this);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Confidence", "Date"});
+        {"#", "File", "No.", "Serial", "Category", "Date"});
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_->setAlternatingRowColors(true);
     table_->verticalHeader()->setVisible(false);
@@ -389,6 +399,7 @@ void WatchTab::onWorkerStdout() {
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
                 info.serialSource = j.value("serial_source", "");
+                info.category = j.value("category", "");
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
                 info.photoIndex = j.value("photo_index", 0);
@@ -435,7 +446,7 @@ void WatchTab::appendResult(const ocr::AssetInfo& info) {
     table_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(info.pcNo)));
     table_->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(info.serialNo)));
     table_->setItem(row, 4,
-                    new QTableWidgetItem(QString::number(info.ocrConfidence, 'f', 2)));
+                    new QTableWidgetItem(watchCategoryLabel(info.category)));
     table_->setItem(row, 5, new QTableWidgetItem(QString::fromStdString(info.photoDate)));
     table_->scrollToBottom();
     results_.push_back(info);
