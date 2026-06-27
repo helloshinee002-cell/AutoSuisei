@@ -100,7 +100,7 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     monitorBtn_->setToolTip("Default: C:/Users/hello/Downloads/Train Monitor — S/N CN-...-A00 parser");
     accessoryBtn_ = new QPushButton("Accessory");
     accessoryBtn_->setToolTip("Default: C:/Users/hello/Downloads/Train Accessory — flexible parser");
-    donateBtn_ = new QPushButton("Donate");
+    donateBtn_ = new QPushButton("Donate PC&&Laptop");  // && → literal &
     donateBtn_->setToolTip("Default: C:/Users/hello/Downloads/Train Donate — No. + Service Tag "
                            "+ ชื่อโรงเรียน/สถานที่ (Thai via Tesseract)");
     stopBtn_ = new QPushButton("Stop");
