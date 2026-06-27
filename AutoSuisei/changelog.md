@@ -1,14 +1,15 @@
 ---
 tags: [changelog, autosuisei]
-updated: 2026-06-26
+updated: 2026-06-27
 ---
 
 # Changelog
 
 [[index]] · [[Home]] · รายละเอียดแต่ละครั้งดู `logs/`
 
-> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.0** ✅ [released บน GitHub](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.0)
+> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.1** ✅ [released บน GitHub](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.1)
 
+- **1.0.1** (feat, 2026-06-27) — **Folder Watch multi-category (best-of-N)**: ติ๊กเลือกหมวด (PC&Laptop/Monitor/Accessory/Donate, default ติ๊กครบ) — แต่ละภาพรันทุกหมวดที่ติ๊กแล้วเลือกผลดีสุด `(has_serial, barcode, has_no, conf)`; `ocr_worker.py` รับ `--category` แบบ CSV. → [[logs/2026-06-27-v1.0.1-watch-multicat]]
 - **1.0.0** (fix, 2026-06-26) — แก้ updater **"TLS initialization failed"**: deploy Qt `tls` plugin (qopensslbackend/qschannelbackend); re-upload assets ทับ v1.0.0. → [[logs/2026-06-26-fix-tls-plugin]]
 - **1.0.0** (2026-06-26) — **Monitor barcode-first CN serial** (Data Matrix + 1D Code128 rotation sweep, ~60%) + **version UI ซ้ายล่าง** + **GitHub auto-updater** (Check/Update, partial update-package, tokenless) + single-source version. → [[logs/2026-06-26-v1.0.0-updater-monitor]]
 - **0.9.7** (2026-06-26) — Barcode-first Serial เพิ่ม **Code128** (`pyzbar`/ZBar) สำหรับ desktop + ขยายไป `donate`; lazy ZBar→DataMatrix→cv2; แก้ OCR `O↔0` (วัด 8/8 ถูก). → [[logs/2026-06-26-barcode-first-serial]]
