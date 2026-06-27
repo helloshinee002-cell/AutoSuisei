@@ -43,8 +43,6 @@ signals:
     void statusChanged(const QString& text);
 
 private slots:
-    void onLoadCsv();
-    void onLoadFolder();
     void onApplyAndNext();
     void onSave();
     void onRename();
@@ -73,11 +71,8 @@ private:
     QString statusText_;
 
     // top buttons
-    QPushButton* loadCsvBtn_{};
-    QPushButton* loadFolderBtn_{};
     QPushButton* saveBtn_{};
     QPushButton* clearBtn_{};
-    QLabel* csvLabel_{};
     QLabel* folderLabel_{};
 
     // progress

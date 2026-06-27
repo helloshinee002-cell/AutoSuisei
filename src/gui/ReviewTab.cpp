@@ -57,8 +57,8 @@ QString sanitizeFilenameComponent(const QString& s) {
 
 ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     auto* root = new QVBoxLayout(this);
-    root->setContentsMargins(24, 20, 24, 16);
-    root->setSpacing(12);
+    root->setContentsMargins(24, 12, 24, 12);
+    root->setSpacing(8);
 
     // ----- Header -----
     auto* title = new QLabel("Review and Rename");
@@ -71,31 +71,21 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     // ----- Top button row -----
     auto* topRow = new QHBoxLayout();
     topRow->setSpacing(10);
-    loadCsvBtn_ = new QPushButton("Load CSV…");
-    loadFolderBtn_ = new QPushButton("Images folder…");
     saveBtn_ = new QPushButton("Save ground truth");
     saveBtn_->setObjectName("primaryButton");
     saveBtn_->setEnabled(false);
     clearBtn_ = new QPushButton("Clear");
-    clearBtn_->setToolTip("รีเซ็ตข้อมูลทั้งหมด — CSV, ภาพ, ฟอร์ม");
-    topRow->addWidget(loadCsvBtn_);
-    topRow->addWidget(loadFolderBtn_);
+    clearBtn_->setToolTip("รีเซ็ตข้อมูลทั้งหมด — ภาพ, ฟอร์ม");
     topRow->addStretch();
     topRow->addWidget(saveBtn_);
     topRow->addWidget(clearBtn_);
     root->addLayout(topRow);
 
-    // ----- CSV / Folder info -----
+    // ----- Folder info -----
     auto* infoRow = new QHBoxLayout();
-    auto* csvLbl = new QLabel("CSV:");
-    csvLbl->setObjectName("dimLabel");
-    csvLabel_ = new QLabel("(none)");
     auto* folderLbl = new QLabel("Folder:");
     folderLbl->setObjectName("dimLabel");
     folderLabel_ = new QLabel("(none)");
-    infoRow->addWidget(csvLbl);
-    infoRow->addWidget(csvLabel_, 1);
-    infoRow->addSpacing(20);
     infoRow->addWidget(folderLbl);
     infoRow->addWidget(folderLabel_, 1);
     root->addLayout(infoRow);
@@ -181,9 +171,9 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     split->addWidget(right);
     // เอนน้ำหนักไปฝั่งรูป (table:right ≈ 2:3) → image pane กว้างขึ้น ~60% ทุก resolution
     // โดย imageScroll_ min ยังต่ำ (220×160) กัน low-res ซ้อนทับ
-    split->setStretchFactor(0, 2);
-    split->setStretchFactor(1, 3);
-    split->setSizes({420, 620});
+    split->setStretchFactor(0, 1);
+    split->setStretchFactor(1, 2);
+    split->setSizes({320, 760});
     root->addWidget(split, 1);
 
     // ----- Rename bar -----
@@ -207,10 +197,8 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     renameRow->addWidget(renameBtn_);
     root->addLayout(renameRow);
 
-    setStatus("Ready — load CSV or send from OCR / Watch tab");
+    setStatus("Ready — send from OCR / Watch tab");
 
-    connect(loadCsvBtn_, &QPushButton::clicked, this, &ReviewTab::onLoadCsv);
-    connect(loadFolderBtn_, &QPushButton::clicked, this, &ReviewTab::onLoadFolder);
     connect(saveBtn_, &QPushButton::clicked, this, &ReviewTab::onSave);
     connect(clearBtn_, &QPushButton::clicked, this, &ReviewTab::onClear);
     connect(applyBtn_, &QPushButton::clicked, this, &ReviewTab::onApplyAndNext);
@@ -274,7 +262,6 @@ void ReviewTab::loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
         return;
     }
     csvPath_ = QString::fromStdString(tempCsv.string());
-    csvLabel_->setText(QString("(from OCR bulk extract — %1 rows)").arg(infos.size()));
     imagesFolder_ = folder;
     folderLabel_->setText(folder);
     rebuildTable();
@@ -283,37 +270,6 @@ void ReviewTab::loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
     renameBtn_->setEnabled(model_.size() > 0);
     auto next = model_.nextUnverified();
     selectRow(next ? static_cast<int>(*next) : 0);
-}
-
-void ReviewTab::onLoadCsv() {
-    const auto path = QFileDialog::getOpenFileName(
-        this, "Load review CSV", QString(), "CSV files (*.csv);;All files (*)");
-    if (path.isEmpty()) return;
-
-    if (!model_.loadCsv(path.toStdString())) {
-        QMessageBox::warning(this, "Load failed",
-                             "ไม่สามารถโหลด CSV ได้ — เช็คว่ามี header filename column");
-        return;
-    }
-    sourceInfos_.clear();  // CSV path doesn't carry batch/date
-    csvPath_ = path;
-    csvLabel_->setText(QFileInfo(path).fileName());
-    rebuildTable();
-    saveBtn_->setEnabled(true);
-    applyBtn_->setEnabled(true);
-    renameBtn_->setEnabled(!imagesFolder_.isEmpty());
-    auto next = model_.nextUnverified();
-    selectRow(next ? static_cast<int>(*next) : 0);
-}
-
-void ReviewTab::onLoadFolder() {
-    const auto path = QFileDialog::getExistingDirectory(
-        this, "Choose images folder", QString());
-    if (path.isEmpty()) return;
-    imagesFolder_ = path;
-    folderLabel_->setText(path);
-    renameBtn_->setEnabled(model_.size() > 0);
-    if (currentRow_ >= 0) loadImageForRow(currentRow_);
 }
 
 void ReviewTab::rebuildTable() {
@@ -450,8 +406,7 @@ void ReviewTab::onClear() {
     table_->setRowCount(0);
     currentRow_ = -1;  // ตั้งก่อนเคลียร์ฟอร์ม — กัน verifiedCheck toggled handler แตะ model ที่เพิ่ง clear
     csvPath_.clear();
-    csvLabel_->setText("(none)");
-    // imagesFolder_ ไม่ล้าง — ถือว่า user อาจจะ load CSV ใหม่ที่ folder เดิม
+    // imagesFolder_ ไม่ล้าง — ถือว่า user อาจ send ชุดใหม่ที่ folder เดิม
     pcEdit_->clear();
     serialEdit_->clear();
     batchEdit_->clear();
