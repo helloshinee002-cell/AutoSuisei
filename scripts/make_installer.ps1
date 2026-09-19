@@ -4,17 +4,20 @@
 
 .DESCRIPTION
     1. Re-runs scripts/make_bundle.ps1 to ensure a fresh portable bundle
-       exists at C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-*
+       exists at <OutDir>\AutoSuisei-portable-*
     2. Invokes Inno Setup's iscc.exe on installer/AutoSuisei.iss
-    3. Output: C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-0.9.0.exe
+    3. Output: <OutDir>\AutoSuisei-Setup-<version>.exe
 
     Requires Inno Setup 6 installed (winget install JRSoftware.InnoSetup).
 #>
 param(
-    [switch]$SkipBundle
+    [switch]$SkipBundle,
+    [string]$OutDir = "$env:USERPROFILE\Backups\AutoSuisei"
 )
 
 $ErrorActionPreference = 'Stop'
+# absolute: ISCC resolves a relative OutputDir against installer\, PowerShell against the cwd
+$OutDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutDir)
 $root = Split-Path -Parent $PSScriptRoot
 
 # locate ISCC — try the common system + per-user install locations
@@ -34,19 +37,19 @@ Then re-run this script.
 
 if (-not $SkipBundle) {
     Write-Host '[1/2] Refreshing portable bundle...'
-    & "$root\scripts\make_bundle.ps1"
+    & "$root\scripts\make_bundle.ps1" -OutDir $OutDir
 }
 
-$bundleDir = Get-ChildItem 'C:\Users\hello\Backups\AutoSuisei\AutoSuisei-portable-*' -Directory |
+$bundleDir = Get-ChildItem "$OutDir\AutoSuisei-portable-*" -Directory |
              Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $bundleDir) { throw 'No portable bundle directory found. Run make_bundle.ps1 first.' }
 
 Write-Host "[2/2] Building installer with $iscc"
 Write-Host "      Bundle source: $($bundleDir.FullName)"
-& $iscc "/DBundleDir=$($bundleDir.FullName)" "$root\installer\AutoSuisei.iss"
+& $iscc "/DBundleDir=$($bundleDir.FullName)" "/DBundleRoot=$OutDir" "$root\installer\AutoSuisei.iss"
 if ($LASTEXITCODE -ne 0) { throw "iscc failed with exit $LASTEXITCODE" }
 
-$out = Get-ChildItem 'C:\Users\hello\Backups\AutoSuisei\AutoSuisei-Setup-*.exe' |
+$out = Get-ChildItem "$OutDir\AutoSuisei-Setup-*.exe" |
        Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($out) {
     $mb = [math]::Round($out.Length / 1MB, 1)

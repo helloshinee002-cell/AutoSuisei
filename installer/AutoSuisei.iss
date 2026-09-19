@@ -5,12 +5,15 @@
 ; Run that PS1 first so the bundle folder exists at the expected path.
 
 #define MyAppName       "AutoSuisei"
-#define MyAppVersion    "1.0.4"
+#define MyAppVersion    "1.0.5"
 #define MyAppPublisher  "MashiroTK"
 #define MyAppExeName    "AutoSuisei.exe"
 ; เปลี่ยน path นี้ถ้า bundle อยู่ที่อื่น — make_bundle.ps1 ตั้งชื่อตาม timestamp
 ; ใช้ตัวที่ใหม่สุดเสมอ (resolved at compile time by ISCC)
-#define BundleRoot      "C:\Users\hello\Backups\AutoSuisei"
+; make_installer.ps1 ส่ง /DBundleRoot=<OutDir>; ไม่ส่ง → %USERPROFILE%\Backups\AutoSuisei
+#ifndef BundleRoot
+  #define BundleRoot    GetEnv("USERPROFILE") + "\Backups\AutoSuisei"
+#endif
 
 ; BundleDir = absolute path to the assembled portable folder
 ; ผู้เรียก ISCC ต้องส่งผ่าน /DBundleDir=<path>  (เช่น make_installer.ps1)

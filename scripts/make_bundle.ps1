@@ -14,16 +14,18 @@
 
 .PARAMETER OutDir
     Where to assemble the bundle directory and zip. Defaults to
-    C:\Users\hello\Backups\AutoSuisei.
+    $env:USERPROFILE\Backups\AutoSuisei.
 
 .EXAMPLE
     .\scripts\make_bundle.ps1
 #>
 param(
-    [string]$OutDir = 'C:\Users\hello\Backups\AutoSuisei'
+    [string]$OutDir = "$env:USERPROFILE\Backups\AutoSuisei"
 )
 
 $ErrorActionPreference = 'Stop'
+# absolute: relative -OutDir must resolve the same for make_bundle, ISCC and make_update_package
+$OutDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutDir)
 
 $root = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $root 'build\windows-x64-release\src\gui'
@@ -66,19 +68,26 @@ Get-ChildItem $vcpkgBin -Filter '*.dll' | ForEach-Object {
 # vcruntime140.dll / msvcp140.dll. Shipping these next to the exe
 # (app-local) is the supported MS deployment path that doesn't require
 # admin to install the redist system-wide.
-$msvcCrt = Get-ChildItem -Path 'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Redist\MSVC' `
-    -Recurse -Filter 'vcruntime140.dll' -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName -match '\\x64\\' -and
-                   $_.FullName -notmatch 'onecore' -and
-                   $_.FullName -notmatch 'spectre' } |
-    Select-Object -First 1 -ExpandProperty DirectoryName
-if ($msvcCrt) {
-    Write-Host "  copying MSVC CRT from $msvcCrt..."
-    Get-ChildItem $msvcCrt -Filter '*.dll' | ForEach-Object {
-        Copy-Item $_.FullName $bundle -Force
-    }
-} else {
-    Write-Warning 'MSVC v143 CRT not found — bundle may fail on machines without VC++ Redist'
+# any VS version/edition (<root>\<ver>\<edition>\VC\Redist\MSVC) - was hardcoded to 18\Community
+$vsRedist = @(Get-ChildItem 'C:\Program Files\Microsoft Visual Studio', 'C:\Program Files (x86)\Microsoft Visual Studio' `
+    -Directory -ErrorAction SilentlyContinue | Get-ChildItem -Directory |
+    ForEach-Object { Join-Path $_.FullName 'VC\Redist\MSVC' } | Where-Object { Test-Path $_ })
+$msvcCrt = $null
+if ($vsRedist.Count -gt 0) {  # guard: Get-ChildItem -Path $null would crawl the current directory
+    $msvcCrt = Get-ChildItem -LiteralPath $vsRedist `
+        -Recurse -Filter 'vcruntime140.dll' -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '\\x64\\' -and
+                       $_.FullName -notmatch 'onecore' -and
+                       $_.FullName -notmatch 'spectre' } |
+        Select-Object -First 1 -ExpandProperty DirectoryName
+}
+if (-not $msvcCrt) {
+    # a bundle without the CRT fails to start (0xc0000142) on PCs without the VC++ redist - never ship it
+    throw 'MSVC v143 CRT (VC\Redist\MSVC\...\x64\...\vcruntime140.dll) not found in any Visual Studio install'
+}
+Write-Host "  copying MSVC CRT from $msvcCrt..."
+Get-ChildItem $msvcCrt -Filter '*.dll' | ForEach-Object {
+    Copy-Item $_.FullName $bundle -Force
 }
 
 # 3. Python sidecar scripts
@@ -123,6 +132,20 @@ if (Test-Path "$pyDir\python.exe") {
             Copy-Item $_.FullName $pyTarget -Force
         }
     }
+    # barcode-first serial needs both libs - a bundle without them silently falls back to OCR
+    foreach ($pkg in @('pyzbar', 'pylibdmtx')) {
+        if (-not (Test-Path (Join-Path $pyTarget "Lib\site-packages\$pkg"))) {
+            throw "embedded python has no $pkg - run scripts/setup_embedded_python.ps1 again"
+        }
+    }
+    # libzbar-64.dll + libdmtx-64.dll need the VC++ 2013 runtime. python.exe's own folder is on the
+    # DLL search path for both (ctypes LOAD_LIBRARY_SEARCH_DEFAULT_DIRS), so ship msvcr120.dll there.
+    # make_update_package.ps1 keeps this one file so auto-updated installs get it too.
+    $msvcr120 = Join-Path $env:WINDIR 'System32\msvcr120.dll'
+    if (-not (Test-Path $msvcr120)) {
+        throw 'msvcr120.dll not found - winget install Microsoft.VCRedist.2013.x64, then re-run'
+    }
+    Copy-Item $msvcr120 $pyTarget -Force
 } else {
     Write-Warning 'embedded-python not built; bundle will require system Python.'
     Write-Warning '  run scripts/setup_embedded_python.ps1 first if you want self-contained.'

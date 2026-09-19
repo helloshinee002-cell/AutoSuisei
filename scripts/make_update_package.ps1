@@ -19,9 +19,10 @@
 #>
 param(
     [string]$BundleDir = "",
-    [string]$OutDir = "C:\Users\hello\Backups\AutoSuisei"
+    [string]$OutDir = "$env:USERPROFILE\Backups\AutoSuisei"
 )
 $ErrorActionPreference = 'Stop'
+$OutDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutDir)
 
 if (-not $BundleDir) {
     $latest = Get-ChildItem "$OutDir\AutoSuisei-portable-*" -Directory |
@@ -40,6 +41,13 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 # Copy everything except python/ (embedded Python base -- excluded to keep the patch small)
 Get-ChildItem $BundleDir | Where-Object { $_.Name -ne 'python' } | ForEach-Object {
     Copy-Item $_.FullName -Destination $stage -Recurse -Force
+}
+# v1.0.5: keep python\msvcr120.dll (VC++ 2013 runtime for pyzbar/pylibdmtx) - a single app-local DLL,
+# not a pip dependency, so existing installs get it through the patch
+$msvcr120 = Join-Path $BundleDir 'python\msvcr120.dll'
+if (Test-Path $msvcr120) {
+    New-Item -ItemType Directory -Path (Join-Path $stage 'python') -Force | Out-Null
+    Copy-Item $msvcr120 (Join-Path $stage 'python') -Force
 }
 
 $zip = Join-Path $OutDir "update-package.zip"

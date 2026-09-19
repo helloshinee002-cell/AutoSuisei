@@ -44,11 +44,18 @@ if ($Force -and (Test-Path $outDir)) {
     Remove-Item -Recurse -Force $outDir
 }
 
-# Skip if already set up
-$marker = Join-Path $outDir 'Lib\site-packages\rapidocr_onnxruntime'
-if (Test-Path $marker) {
-    Write-Host "Embedded Python already set up at $outDir"
-    Write-Host "  pass -Force to rebuild"
+# Skip if already set up - but top up packages added later (pylibdmtx/pyzbar) instead of silently skipping
+$required = @('rapidocr_onnxruntime', 'onnxruntime', 'pylibdmtx', 'pyzbar')
+if (Test-Path (Join-Path $outDir 'Lib\site-packages\rapidocr_onnxruntime')) {
+    $missing = @($required | Where-Object { -not (Test-Path (Join-Path $outDir "Lib\site-packages\$_")) })
+    if ($missing.Count -eq 0) {
+        Write-Host "Embedded Python already set up at $outDir"
+        Write-Host "  pass -Force to rebuild"
+        return
+    }
+    Write-Host "Embedded Python exists but is missing: $($missing -join ', ') - installing them..."
+    & (Join-Path $outDir 'python.exe') -m pip install --no-warn-script-location ($missing -replace '_', '-')
+    if ($LASTEXITCODE -ne 0) { throw "pip install failed (exit $LASTEXITCODE)" }
     return
 }
 
@@ -89,9 +96,10 @@ try {
     & $pyExe $getPipPy --no-warn-script-location 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "get-pip.py failed (exit $LASTEXITCODE)" }
 
-    Write-Host "[5/5] Installing rapidocr-onnxruntime + onnxruntime (5-10 min, downloads ~150MB)..."
+    # pylibdmtx + pyzbar = barcode-first serial (v0.9.6/0.9.7) - were installed by hand before, now scripted
+    Write-Host "[5/5] Installing rapidocr-onnxruntime + onnxruntime + pylibdmtx + pyzbar (5-10 min, ~150MB)..."
     & $pyExe -m pip install --no-warn-script-location `
-        rapidocr-onnxruntime onnxruntime 2>&1 | Out-Host
+        rapidocr-onnxruntime onnxruntime pylibdmtx pyzbar 2>&1 | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "pip install failed (exit $LASTEXITCODE)" }
 } finally {
     $ErrorActionPreference = $prevEAP
