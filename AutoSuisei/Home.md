@@ -14,7 +14,7 @@ updated: 2026-09-19
   - ไล่จาก v0.9.0 (rebrand) → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) → 1.0.0 monitor CN + updater → 1.0.1–1.0.4 Watch best-of-N + Review layout → **1.0.5** AI assist
 - **Git**: branch `main` (commit ตรง, ไม่ใช้ PR) — released ล่าสุด v1.0.4 ✅ (https://github.com/helloshinee002-cell/AutoSuisei/releases)
 - **Remote**: https://github.com/helloshinee002-cell/AutoSuisei.git
-- **กำลังทำต่อ**: ถัดไป: รอ user ทดสอบ updater 1.0.4 → 1.0.5. Monitor No. / donate เขียนมือ ยังรอ retrain (recurring-loop)
+- **กำลังทำต่อ**: updater (Check for updates → 1.0.5) user ทดสอบผ่านแล้ว 2026-09-19. ค้างระยะยาว: Monitor No. / donate เขียนมือ รอ retrain Monitor No. / donate เขียนมือ ยังรอ retrain (recurring-loop)
 - **Wiki**: [[index]] (entry-point) · [[CLAUDE]] (กฎ + Mandatory Wiki Update) · [[changelog]] · `logs/`
 
 ## Quick facts
