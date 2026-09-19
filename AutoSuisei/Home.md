@@ -10,11 +10,11 @@ updated: 2026-09-19
 > review/แก้ใน GUI → rename ไฟล์ภาพอัตโนมัติ
 
 ## สถานะ (ณ 2026-09-19)
-- **เวอร์ชัน**: **v1.0.5** — AI assist (vision LLM ผ่าน LiteLLM, barcode > AI > OCR) — รอ user ทดสอบก่อน release; released ล่าสุด **v1.0.4** — ดู [[changelog]]
+- **เวอร์ชัน**: **v1.0.5** — AI assist (vision LLM ผ่าน LiteLLM, barcode > AI > OCR) ✅ released 2026-09-19 — ดู [[changelog]]
   - ไล่จาก v0.9.0 (rebrand) → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) → 1.0.0 monitor CN + updater → 1.0.1–1.0.4 Watch best-of-N + Review layout → **1.0.5** AI assist
 - **Git**: branch `main` (commit ตรง, ไม่ใช้ PR) — released ล่าสุด v1.0.4 ✅ (https://github.com/helloshinee002-cell/AutoSuisei/releases)
 - **Remote**: https://github.com/helloshinee002-cell/AutoSuisei.git
-- **กำลังทำต่อ**: v1.0.5 AI assist ([[logs/2026-09-18-v1.0.5-ai-assist]]) — user ทดสอบ → release. Monitor No. / donate เขียนมือ ยังรอ retrain (recurring-loop)
+- **กำลังทำต่อ**: ถัดไป: รอ user ทดสอบ updater 1.0.4 → 1.0.5. Monitor No. / donate เขียนมือ ยังรอ retrain (recurring-loop)
 - **Wiki**: [[index]] (entry-point) · [[CLAUDE]] (กฎ + Mandatory Wiki Update) · [[changelog]] · `logs/`
 
 ## Quick facts
