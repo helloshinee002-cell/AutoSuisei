@@ -46,6 +46,7 @@ from bulk_extract import (  # noqa: E402
     read_serial_barcode,
     sticker_no_from_boxes,
 )
+from ai_assist import ai_read, config as ai_config, merge as ai_merge  # noqa: E402
 
 _VALID_CATS = ("pc", "monitor", "accessory", "donate")
 
@@ -188,9 +189,14 @@ def main() -> int:
     t0 = time.time()
     engine = RapidOCR()
     print(f"ocr_worker: model ready in {time.time()-t0:.1f}s", file=sys.stderr)
+    if ai_config():
+        print(f"ocr_worker: AI assist ON (model={ai_config()['model']})", file=sys.stderr)
     emit({"event": "ready", "load_time": time.time() - t0,
           "categories": categories})
 
+    # Qt เขียน path เป็น UTF-8 (WatchTab: toUtf8) แต่ stdin บน Windows decode ด้วย ANSI codepage
+    # → path ไทย/ยูนิโค้ดกลายเป็น "not a file". บังคับ UTF-8 (บั๊กคลาสเดียวกับ u8path)
+    sys.stdin.reconfigure(encoding="utf-8")
     for line in sys.stdin:
         path_str = line.strip()
         if not path_str or path_str.upper() == "QUIT":
@@ -208,6 +214,13 @@ def main() -> int:
             emit({"event": "error", "filename": img.name,
                   "path": str(img), "error": str(e)})
             continue
+
+        # v1.0.5 AI assist: 1 call/ภาพ หลังเลือกหมวดแล้ว (ไม่ใช่ N) — barcode > AI > OCR
+        cat = result["category"]
+        (result["pc_no"], result["serial_no"], result["serial_source"],
+         result["no_source"]) = ai_merge(result["pc_no"], result["serial_no"],
+                                         result["serial_source"], ai_read(img, cat),
+                                         cat, meta["pc_range"])
 
         emit({"event": "result", **result})
 

@@ -31,7 +31,11 @@ namespace autopilot::gui {
 
 namespace {
 
-constexpr int kCountColumns = 7;  // #, File, No., Serial, Src, Date, OK
+constexpr int kCountColumns = 8;  // #, File, No., Serial, No.จาก, Serialจาก, Category, OK
+constexpr int kColNoSrc = 4;      // ที่มาของ No.: AI / OCR
+constexpr int kColSerialSrc = 5;  // ที่มาของ Serial: Barcode / AI / OCR
+constexpr int kColCategory = 6;
+constexpr int kColOk = 7;
 
 QTableWidgetItem* makeItem(const QString& text) {
     auto* item = new QTableWidgetItem(text);
@@ -39,12 +43,18 @@ QTableWidgetItem* makeItem(const QString& text) {
     return item;
 }
 
-// remark ที่มาของ serial: barcode/ocr → "Barcode"/"OCR" (ว่างถ้าไม่มี serial)
-QString srcLabel(const ocr::ReviewRow& r) {
+// ที่มาของ No. (user ขอแยกคอลัมน์ No. / Serial): AI หรือ OCR — ว่างถ้าไม่มี No.
+QString noSrcLabel(const ocr::ReviewRow& r) {
+    if (r.pcNo.empty()) return "";
+    return r.noSource == "ai" ? "AI" : "OCR";
+}
+
+// ที่มาของ Serial: Barcode / AI / OCR — ว่างถ้าไม่มี Serial
+QString serialSrcLabel(const ocr::ReviewRow& r) {
     if (r.serialNo.empty()) return "";
     if (r.serialSource == "barcode") return "Barcode";
-    if (r.serialSource == "ocr") return "OCR";
-    return QString::fromStdString(r.serialSource);
+    if (r.serialSource == "ai") return "AI";
+    return "OCR";
 }
 
 // flag ("pc"/"monitor"/…) → ป้ายหมวดอ่านง่าย (mirror WatchTab::watchCategoryLabel)
@@ -101,7 +111,7 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
 
     table_ = new QTableWidget(0, kCountColumns);
     table_->setHorizontalHeaderLabels(
-        {"#", "File", "No.", "Serial", "Src", "Category", "OK"});
+        {"#", "File", "No.", "Serial", "No.จาก", "Serialจาก", "Category", "OK"});
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->setSelectionMode(QAbstractItemView::SingleSelection);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -111,9 +121,10 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
     table_->setColumnWidth(0, 50);
     table_->setColumnWidth(2, 80);
     table_->setColumnWidth(3, 140);
-    table_->setColumnWidth(4, 70);   // Src (Barcode/OCR)
-    table_->setColumnWidth(5, 110);  // Category
-    table_->setColumnWidth(6, 44);   // OK
+    table_->setColumnWidth(kColNoSrc, 60);
+    table_->setColumnWidth(kColSerialSrc, 75);
+    table_->setColumnWidth(kColCategory, 110);
+    table_->setColumnWidth(kColOk, 44);
     split->addWidget(table_);
 
     auto* right = new QWidget(this);
@@ -228,7 +239,7 @@ ReviewTab::ReviewTab(QWidget* parent) : QWidget(parent) {
         if (r.verified == on) return;
         r.verified = on;
         model_.setRow(static_cast<std::size_t>(currentRow_), r);
-        if (auto* it = table_->item(currentRow_, 6)) it->setText(on ? "OK" : "");
+        if (auto* it = table_->item(currentRow_, kColOk)) it->setText(on ? "OK" : "");
         updateStatus();
     });
 }
@@ -246,7 +257,7 @@ void ReviewTab::loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
     auto tempCsv = fs::temp_directory_path() / "autopilot_ocr_to_review.csv";
     {
         std::ofstream out(tempCsv, std::ios::trunc);
-        out << "filename,pc_no,serial_no,serial_source\n";
+        out << "filename,pc_no,serial_no,serial_source,no_source\n";
         for (const auto& info : infos) {
             // info.filename เป็น basename จาก Python อยู่แล้ว — เลี่ยง fs::path(narrow) round-trip ที่ทำ
             // ANSI corruption บนชื่อไทย
@@ -254,15 +265,18 @@ void ReviewTab::loadFromExtraction(const std::vector<ocr::AssetInfo>& infos,
             out << ocr::ReviewModel::escapeCsv(base) << ','
                 << ocr::ReviewModel::escapeCsv(info.pcNo) << ','
                 << ocr::ReviewModel::escapeCsv(info.serialNo) << ','
-                << ocr::ReviewModel::escapeCsv(info.serialSource) << '\n';
+                << ocr::ReviewModel::escapeCsv(info.serialSource) << ','
+                << ocr::ReviewModel::escapeCsv(info.noSource) << '\n';
         }
     }
-    if (!model_.loadCsv(tempCsv.string())) {
+    // UTF-8 path (ไม่ใช่ path::string() = ANSI บน MSVC) — %TEMP% ที่มีชื่อผู้ใช้ไทยต้องไม่พัง (loadCsv ใช้ u8path)
+    const QString tempCsvQ = QString::fromStdWString(tempCsv.wstring());
+    if (!model_.loadCsv(tempCsvQ.toStdString())) {
         QMessageBox::warning(this, "Load failed",
                              "ไม่สามารถสร้าง review data จาก OCR results ได้");
         return;
     }
-    csvPath_ = QString::fromStdString(tempCsv.string());
+    csvPath_ = tempCsvQ;
     imagesFolder_ = folder;
     folderLabel_->setText(folder);
     rebuildTable();
@@ -286,9 +300,10 @@ void ReviewTab::rebuildTable() {
         table_->setItem(r, 1, makeItem(QString::fromStdString(row.filename)));
         table_->setItem(r, 2, makeItem(QString::fromStdString(row.pcNo)));
         table_->setItem(r, 3, makeItem(QString::fromStdString(row.serialNo)));
-        table_->setItem(r, 4, makeItem(srcLabel(row)));
-        table_->setItem(r, 5, makeItem(catStr));
-        table_->setItem(r, 6, makeItem(row.verified ? "OK" : ""));
+        table_->setItem(r, kColNoSrc, makeItem(noSrcLabel(row)));
+        table_->setItem(r, kColSerialSrc, makeItem(serialSrcLabel(row)));
+        table_->setItem(r, kColCategory, makeItem(catStr));
+        table_->setItem(r, kColOk, makeItem(row.verified ? "OK" : ""));
     }
     updateStatus();
 }
@@ -373,7 +388,7 @@ void ReviewTab::onApplyAndNext() {
 
     table_->item(currentRow_, 2)->setText(QString::fromStdString(r.pcNo));
     table_->item(currentRow_, 3)->setText(QString::fromStdString(r.serialNo));
-    table_->item(currentRow_, 6)->setText(r.verified ? "OK" : "");
+    table_->item(currentRow_, kColOk)->setText(r.verified ? "OK" : "");
     updateStatus();
 
     auto next = model_.nextUnverified(static_cast<std::size_t>(currentRow_ + 1));

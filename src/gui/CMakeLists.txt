@@ -18,6 +18,8 @@ qt_add_executable(AutoSuisei
     WatchTab.cpp
     Updater.h
     Updater.cpp
+    AiSettings.h
+    AiSettings.cpp
     VersionCompare.h
     AutoSuisei.rc
     resources.qrc

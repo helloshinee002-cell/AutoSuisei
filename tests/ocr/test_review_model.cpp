@@ -202,6 +202,38 @@ TEST(ReviewModel, SerialSource_AbsentColumn_DefaultsEmpty) {
     EXPECT_EQ(model.at(0)->serialSource, "");
 }
 
+// =================== no_source remark (ai vs ocr, v1.0.5) ===================
+
+TEST(ReviewModel, NoSource_RoundTrips) {
+    // v1.0.5 AI assist: bulk_extract.py เขียน no_source ("ai"/"ocr") + serial_source อาจเป็น "ai"
+    const std::string csv =
+        "filename,pc_no,serial_no,serial_source,no_source,batch_id\n"
+        "a.jpg,15,6GSWFL2,ai,ai,\n"
+        "b.jpg,16,7VHTRM2,barcode,ocr,\n";
+    auto path = writeTempCsv(csv);
+
+    ReviewModel a;
+    ASSERT_TRUE(a.loadCsv(path.string()));
+    EXPECT_EQ(a.at(0)->noSource, "ai");
+    EXPECT_EQ(a.at(0)->serialSource, "ai");
+    EXPECT_EQ(a.at(1)->noSource, "ocr");
+
+    auto outPath = fs::temp_directory_path() / "autopilot_review_nosrc.csv";
+    ASSERT_TRUE(a.saveCsv(outPath.string()));
+    ReviewModel b;
+    ASSERT_TRUE(b.loadCsv(outPath.string()));
+    EXPECT_EQ(b.at(0)->noSource, "ai");
+    EXPECT_EQ(b.at(1)->noSource, "ocr");
+}
+
+TEST(ReviewModel, NoSource_AbsentColumn_DefaultsEmpty) {
+    // CSV ก่อน v1.0.5 ไม่มี no_source → "" (backward-compat)
+    auto path = writeTempCsv("filename,pc_no,serial_no,serial_source\nimg.jpg,1,ABC1234,ocr\n");
+    ReviewModel model;
+    ASSERT_TRUE(model.loadCsv(path.string()));
+    EXPECT_EQ(model.at(0)->noSource, "");
+}
+
 // =================== navigation helpers ===================
 
 TEST(ReviewModel, NextUnverified_SkipsVerified) {

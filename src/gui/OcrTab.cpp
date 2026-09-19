@@ -1,5 +1,8 @@
 #include "OcrTab.h"
 
+#include "AiSettings.h"
+
+#include <algorithm>
 #include <filesystem>
 
 
@@ -11,6 +14,8 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QProcess>
+#include <QProgressBar>
+#include <QStyle>
 #include <QPushButton>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -82,6 +87,11 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     root->addWidget(title);
     root->addWidget(subtitle);
 
+    // ----- v1.0.5: ป้ายโหมด OCR / AI -----
+    modeLabel_ = new QLabel();
+    modeLabel_->setObjectName("modeBadge");
+    root->addWidget(modeLabel_);
+
     // ----- Table -----
     table_ = new QTableWidget(0, 7);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -90,6 +100,13 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     rebuildHeaders();
     root->addWidget(table_, 1);
+
+    // ----- v1.0.5: หลอดโหลด (ซ่อนจนกว่าจะเริ่มรัน) -----
+    progress_ = new QProgressBar();
+    progress_->setObjectName("ocrProgress");
+    progress_->setTextVisible(true);
+    progress_->setVisible(false);
+    root->addWidget(progress_);
 
     // ----- Button row -----
     auto* btnRow = new QHBoxLayout();
@@ -123,6 +140,7 @@ OcrTab::OcrTab(storage::IOcrResultRepository& repo, QWidget* parent)
     root->addLayout(btnRow);
 
     setStatus("Ready — เลือก category เพื่อเริ่ม bulk extract");
+    updateModeLabel();
 
     connect(pcLaptopBtn_, &QPushButton::clicked, this, &OcrTab::onPcLaptop);
     connect(monitorBtn_, &QPushButton::clicked, this, &OcrTab::onMonitor);
@@ -150,6 +168,40 @@ void OcrTab::rebuildHeaders() {
 void OcrTab::setStatus(const QString& text) {
     statusText_ = text;
     emit statusChanged(text);
+}
+
+void OcrTab::refreshAiMode() {
+    const bool running = bulkProcess_ && bulkProcess_->state() != QProcess::NotRunning;
+    if (!running) showRun_ = false;  // รอบที่รันอยู่ใช้ค่าเดิมจนจบ — ป้ายยังแสดงของรอบนั้น
+    updateModeLabel();
+}
+
+void OcrTab::updateModeLabel() {
+    QString text;
+    QString mode;  // → QSS QLabel#modeBadge[mode="ai"|"ocr"|"warn"]
+    if (!showRun_) {
+        if (aiEnabled()) {
+            text = QString("โหมด: OCR + AI (%1) — ใช้กับรอบถัดไป").arg(aiModelName());
+            mode = "ai";
+        } else {
+            text = "โหมด: OCR อย่างเดียว — เปิด AI ได้ที่ AI Settings (ซ้ายล่าง)";
+            mode = "ocr";
+        }
+    } else if (runAi_) {
+        text = QString("โหมด: OCR + AI (%1)  •  AI ตอบ %2  •  AI ล้มเหลว %3")
+                   .arg(runModel_).arg(aiOk_).arg(aiFail_);
+        mode = (aiFail_ > 0 && aiOk_ == 0) ? "warn" : "ai";
+    } else if (aiRejected_) {
+        text = "โหมด: OCR อย่างเดียว — AI ถูกปิด (ตรวจ key / URL ใน AI Settings)";
+        mode = "warn";
+    } else {
+        text = "โหมด: OCR อย่างเดียว";
+        mode = "ocr";
+    }
+    modeLabel_->setText(text);
+    modeLabel_->setProperty("mode", mode);
+    modeLabel_->style()->unpolish(modeLabel_);  // property selector ต้อง re-polish
+    modeLabel_->style()->polish(modeLabel_);
 }
 
 void OcrTab::onPcLaptop() {
@@ -209,9 +261,20 @@ void OcrTab::processFolder(const QString& folder, AssetCategory category) {
     bulkStdoutBuf_.clear();
     bulkExpected_ = 0;
     bulkProcessed_ = 0;
+    // ป้ายโหมด: เดาจากค่าที่ตั้งไว้ก่อน แล้วยืนยันด้วย event start ของ Python
+    showRun_ = true;
+    runAi_ = aiEnabled();
+    aiRejected_ = false;
+    runModel_ = aiModelName();
+    aiOk_ = aiFail_ = 0;
+    updateModeLabel();
+    progress_->setRange(0, 0);  // busy ระหว่างโหลดโมเดล
+    progress_->setFormat("กำลังโหลดโมเดล…");
+    progress_->setVisible(true);
 
     namespace fs = std::filesystem;
-    const auto tmpCsv = (fs::temp_directory_path() / "autopilot_bulk.csv").string();
+    // wstring → QString: path::string() เป็น ANSI บน MSVC → %TEMP% ชื่อไทยจะเพี้ยนตอนส่งให้ Python
+    const QString tmpCsv = QString::fromStdWString((fs::temp_directory_path() / "autopilot_bulk.csv").wstring());
 
     if (!bulkProcess_) {
         bulkProcess_ = new QProcess(this);
@@ -224,8 +287,9 @@ void OcrTab::processFolder(const QString& folder, AssetCategory category) {
 
     setStatus(QString("[%1] กำลังโหลด PaddleOCR…").arg(categoryLabel(category)));
     const QString categoryArg = QString("--category=%1").arg(categoryFlag(category));
+    bulkProcess_->setProcessEnvironment(aiProcessEnvironment());  // v1.0.5 AI key ทาง env (ไม่ใช่ argv)
     bulkProcess_->start(pythonExe(), {script, folder,
-                                       QString::fromStdString(tmpCsv),
+                                       tmpCsv,
                                        "--progress-json",
                                        categoryArg});
     if (!bulkProcess_->waitForStarted(5000)) {
@@ -253,10 +317,18 @@ void OcrTab::onBulkStdout() {
             const std::string event = j.value("event", "");
             if (event == "start") {
                 bulkExpected_ = j.value("total", 0);
+                const bool guiAi = runAi_;
+                runAi_ = j.value("ai", false);
+                aiRejected_ = guiAi && !runAi_;
+                if (runAi_) runModel_ = QString::fromStdString(j.value("ai_model", std::string{}));
+                updateModeLabel();
                 setStatus(QString("[%1] เจอ %2 ภาพ • กำลังโหลดโมเดล…")
                               .arg(categoryLabel(bulkCategory_))
                               .arg(bulkExpected_));
             } else if (event == "ready") {
+                progress_->setRange(0, std::max(bulkExpected_, 1));
+                progress_->setValue(0);
+                progress_->setFormat(bulkExpected_ ? "%v / %m ภาพ" : "ไม่พบภาพในโฟลเดอร์");
                 setStatus(QString("[%1] เริ่มประมวลผล %2 ภาพ…")
                               .arg(categoryLabel(bulkCategory_))
                               .arg(bulkExpected_));
@@ -266,6 +338,7 @@ void OcrTab::onBulkStdout() {
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
                 info.serialSource = j.value("serial_source", "");
+                info.noSource = j.value("no_source", "");
                 info.category = categoryFlag(bulkCategory_);  // Review Category column
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
@@ -282,21 +355,32 @@ void OcrTab::onBulkStdout() {
                 bulkProcessed_ = j.value("i", bulkProcessed_ + 1);
                 const int withPc = j.value("with_pc", 0);
                 const int withSn = j.value("with_sn", 0);
-                setStatus(QString("[%1] ประมวลผล %2/%3 • No#=%4 Serial=%5")
+                const auto aiStatus = j.value("ai_status", std::string{});
+                if (aiStatus == "ok") ++aiOk_;
+                else if (aiStatus == "fail") ++aiFail_;
+                updateModeLabel();
+                progress_->setValue(bulkProcessed_);
+                setStatus(QString("[%1] ประมวลผล %2/%3 • No#=%4 Serial=%5%6")
                               .arg(categoryLabel(bulkCategory_))
                               .arg(bulkProcessed_).arg(bulkExpected_)
-                              .arg(withPc).arg(withSn));
+                              .arg(withPc).arg(withSn)
+                              .arg(runAi_ ? QString(" • AI ตอบ %1").arg(aiOk_) : QString()));
             } else if (event == "done") {
                 const int withPc = j.value("with_pc", 0);
                 const int withSn = j.value("with_sn", 0);
                 const int total = j.value("total", bulkProcessed_);
                 const double pcRate = total ? 100.0 * withPc / total : 0.0;
                 const double snRate = total ? 100.0 * withSn / total : 0.0;
-                setStatus(QString("[%1] เสร็จ %2 ภาพ — No. %3% • Serial %4%")
+                progress_->setRange(0, std::max(total, 1));
+                progress_->setValue(std::max(total, 1));
+                progress_->setFormat(QString("เสร็จ %1 ภาพ").arg(total));
+                setStatus(QString("[%1] เสร็จ %2 ภาพ — No. %3% • Serial %4%%5")
                               .arg(categoryLabel(bulkCategory_))
                               .arg(total)
                               .arg(pcRate, 0, 'f', 1)
-                              .arg(snRate, 0, 'f', 1));
+                              .arg(snRate, 0, 'f', 1)
+                              .arg(runAi_ ? QString(" • AI ตอบ %1/%2 ภาพ").arg(aiOk_).arg(total)
+                                          : QString(" • OCR อย่างเดียว")));
             }
         } catch (const std::exception&) {
             // ignore bad JSON (probably stderr leaked)
@@ -322,6 +406,8 @@ void OcrTab::onBulkFinished(int exitCode) {
         setStatus(QString("Python จบแบบ exit code %1 — %2")
                       .arg(exitCode)
                       .arg(err.left(200)));
+        if (progress_->maximum() == 0) progress_->setRange(0, 1);  // หยุด busy animation
+        progress_->setFormat(QString("หยุดที่ %1 / %2 ภาพ").arg(bulkProcessed_).arg(bulkExpected_));
     }
 }
 
@@ -345,6 +431,9 @@ void OcrTab::onClear() {
     bulkResults_.clear();
     bulkFolder_.clear();
     sendToReviewBtn_->setEnabled(false);
+    progress_->setVisible(false);
+    showRun_ = false;
+    updateModeLabel();
     setStatus("Cleared");
 }
 

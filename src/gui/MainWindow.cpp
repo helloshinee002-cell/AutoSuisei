@@ -10,6 +10,7 @@
 #include <QStatusBar>
 #include <QWidget>
 
+#include "AiSettings.h"
 #include "OcrTab.h"
 #include "ReviewTab.h"
 #include "SidebarNav.h"
@@ -112,6 +113,16 @@ MainWindow::MainWindow(std::unique_ptr<recorder::IRecorder> rec,
     };
     connect(ocrTab, &OcrTab::sendToReviewRequested, this, toReview);
     connect(watchTab, &WatchTab::sendToReviewRequested, this, toReview);
+
+    // ----- AI assist settings (v1.0.5) -----
+    sidebar->setAiStatus(aiEnabled());
+    connect(sidebar, &SidebarNav::aiSettingsRequested, this, [this, sidebar, watchTab, ocrTab]() {
+        AiSettingsDialog dlg(this);
+        if (dlg.exec() != QDialog::Accepted) return;
+        sidebar->setAiStatus(aiEnabled());
+        watchTab->applyAiSettings();  // Watch ที่รันอยู่ใช้ค่าใหม่ทันที (ปิด AI = หยุดส่งภาพจริง)
+        ocrTab->refreshAiMode();      // ป้ายโหมด OCR/AI หน้า OCR Single
+    });
 
     // ----- Check Version / Update (GitHub Releases) -----
     auto* updater = new Updater(this);

@@ -113,13 +113,27 @@ SidebarNav::SidebarNav(QWidget* parent) : QWidget(parent) {
         "QPushButton#checkUpdateBtn { color:#9FB4AF; background:#0F1416;"
         " border:1px solid #1E2A28; border-radius:6px; padding:5px 8px; font-size:11px; }"
         "QPushButton#checkUpdateBtn:hover { color:#E5F4F0; border-color:#10B981; }");
+    aiBtn_ = new QPushButton();
+    aiBtn_->setObjectName("aiSettingsBtn");
+    aiBtn_->setCursor(Qt::PointingHandCursor);
+    aiBtn_->setStyleSheet(
+        "QPushButton#aiSettingsBtn { color:#9FB4AF; background:#0F1416;"
+        " border:1px solid #1E2A28; border-radius:6px; padding:5px 8px; font-size:11px; }"
+        "QPushButton#aiSettingsBtn:hover { color:#E5F4F0; border-color:#10B981; }");
+    setAiStatus(false);
     fl->addWidget(ver);
     fl->addWidget(upBtn);
+    fl->addWidget(aiBtn_);
     root->addWidget(footer);
 
     connect(list_, &QListWidget::currentRowChanged,
             this, &SidebarNav::currentChanged);
     connect(upBtn, &QPushButton::clicked, this, &SidebarNav::checkUpdateRequested);
+    connect(aiBtn_, &QPushButton::clicked, this, &SidebarNav::aiSettingsRequested);
+}
+
+void SidebarNav::setAiStatus(bool on) {
+    aiBtn_->setText(on ? "AI Settings  ● ON" : "AI Settings  ○ OFF");
 }
 
 int SidebarNav::addItem(const QString& code, const QString& label,

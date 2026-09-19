@@ -35,6 +35,9 @@ public:
 
     QString statusText() const { return statusText_; }
 
+    /** v1.0.5: ค่า AI เปลี่ยน → ถ้ากำลัง watch ให้ restart worker (env ใหม่) โดยไม่ทิ้งภาพที่รอคิว/กำลังทำ */
+    void applyAiSettings();
+
 signals:
     /** ส่งผลทั้งหมดที่เก็บได้ไปให้ Review tab */
     void sendToReviewRequested(const std::vector<ocr::AssetInfo>& infos,
@@ -69,6 +72,7 @@ private:
 
     QString folder_;
     bool watching_{false};
+    QString inFlight_;  ///< path ที่ส่งให้ worker แล้วแต่ยังไม่ได้ผล (restart จะ requeue)
     QSet<QString> seenFiles_;
     QQueue<QString> pendingQueue_;
     bool workerBusy_{false};

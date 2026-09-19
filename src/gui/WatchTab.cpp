@@ -1,5 +1,7 @@
 #include "WatchTab.h"
 
+#include "AiSettings.h"
+
 #include <algorithm>
 #include <filesystem>
 
@@ -293,12 +295,14 @@ void WatchTab::startWorker() {
             this, &WatchTab::onWorkerStdout);
     connect(worker_, &QProcess::readyReadStandardError,
             this, &WatchTab::onWorkerStderr);
+    // ผูกกับ process ตัวนี้ — finished ของ worker เก่า (ที่ถูก stop/restart) ต้องไม่มาปิด watch ของตัวใหม่
     connect(worker_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-            this, [this](int code, QProcess::ExitStatus) {
-                onWorkerFinished(code);
+            this, [this, proc = worker_](int code, QProcess::ExitStatus) {
+                if (proc == worker_) onWorkerFinished(code);
             });
 
     setStatus("กำลังโหลด PaddleOCR (1-2 วินาที)…");
+    worker_->setProcessEnvironment(aiProcessEnvironment());  // v1.0.5 AI key ทาง env (ไม่ใช่ argv)
     worker_->start(pythonExe(), {script, "--category=" + cats.join(",")});
     if (!worker_->waitForStarted(5000)) {
         QMessageBox::critical(this, "Python not found",
@@ -330,7 +334,32 @@ void WatchTab::stopWorker() {
     }
     if (fsWatcher_ && !folder_.isEmpty()) fsWatcher_->removePath(folder_);
     workerBusy_ = false;
+    inFlight_.clear();
     pendingQueue_.clear();
+}
+
+void WatchTab::applyAiSettings() {
+    if (!watching_) return;  // ยังไม่ watch → startWorker ครั้งหน้าอ่าน env ใหม่เอง
+    auto keep = pendingQueue_;
+    const QString busyPath = workerBusy_ ? inFlight_ : QString();
+    const auto doneBefore = results_.size();
+    stopWorker();  // ระหว่างรอปิด worker อาจส่งผลภาพที่ค้างมาทัน (appendResult)
+    if (!busyPath.isEmpty() && results_.size() == doneBefore) keep.prepend(busyPath);  // ยังไม่ได้ผล → ส่งใหม่
+    stdoutBuf_.clear();  // ทิ้งเศษบรรทัดของ worker เก่า
+    watching_ = false;
+    startWorker();       // env ใหม่ (aiProcessEnvironment)
+    if (!watching_) {    // start ไม่สำเร็จ → กลับเป็น idle, ให้ภาพที่ค้างถูกสแกนใหม่รอบหน้า
+        for (const auto& f : keep) seenFiles_.remove(f);
+        watchBtn_->setText("Start watching");
+        liveLabel_->setText("● Idle");
+        liveLabel_->setStyleSheet("color: #6B7B78; font-size: 12px;");
+        setCategoryBoxesEnabled(true);
+        updateWatchEnabled();
+        return;
+    }
+    pendingQueue_ = keep;
+    setStatus("ใช้ค่า AI ใหม่แล้ว — worker เริ่มใหม่");
+    pumpQueue();
 }
 
 void WatchTab::onClear() {
@@ -374,6 +403,7 @@ void WatchTab::pumpQueue() {
     if (!worker_ || worker_->state() != QProcess::Running) return;
     const QString next = pendingQueue_.dequeue();
     workerBusy_ = true;
+    inFlight_ = next;
     setStatus(QString("Processing %1").arg(QFileInfo(next).fileName()));
     worker_->write((next + "\n").toUtf8());
 }
@@ -398,6 +428,7 @@ void WatchTab::onWorkerStdout() {
                 info.pcNo = j.value("pc_no", "");
                 info.serialNo = j.value("serial_no", "");
                 info.serialSource = j.value("serial_source", "");
+                info.noSource = j.value("no_source", "");
                 info.category = j.value("category", "");
                 info.batchId = j.value("batch_id", "");
                 info.photoDate = j.value("photo_date", "");
@@ -409,6 +440,7 @@ void WatchTab::onWorkerStdout() {
                     info.warnings.push_back(j["error"].get<std::string>());
                 appendResult(info);
                 workerBusy_ = false;
+                inFlight_.clear();
                 pumpQueue();
             }
         } catch (const std::exception&) {

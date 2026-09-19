@@ -10,6 +10,7 @@
 
 class QLabel;
 class QProcess;
+class QProgressBar;
 class QPushButton;
 class QTableWidget;
 
@@ -33,6 +34,9 @@ public:
 
     /** Current status string — used by MainWindow when switching to this tab. */
     QString statusText() const { return statusText_; }
+
+    /** v1.0.5: อัปเดตป้ายโหมด OCR/AI ตามค่า AI Settings ปัจจุบัน (เรียกหลังปิด dialog) */
+    void refreshAiMode();
 
 signals:
     /** ส่ง bulk extract results ไปให้ Review tab ตรวจสอบความถูกต้อง */
@@ -59,6 +63,8 @@ private:
     void addAssetRow(const ocr::AssetInfo& info);
     void rebuildHeaders();
     void setStatus(const QString& text);
+    /** ป้ายโหมด: ก่อนรัน = ตามค่า AI Settings, ระหว่าง/หลังรัน = ตามที่ Python ใช้จริง + นับ AI ตอบ/ล้มเหลว */
+    void updateModeLabel();
 
     storage::IOcrResultRepository& repo_;
     ocr::OcrEngine engine_;
@@ -71,6 +77,15 @@ private:
     QByteArray bulkStdoutBuf_;
     int bulkExpected_{0};
     int bulkProcessed_{0};
+    // v1.0.5 ป้ายโหมด + หลอดโหลด
+    bool showRun_{false};    ///< true = ป้ายแสดงผลของรอบล่าสุด (ไม่ใช่ค่าที่ตั้งไว้)
+    bool runAi_{false};      ///< Python ใช้ AI จริงในรอบนี้ (event start.ai)
+    bool aiRejected_{false}; ///< GUI เปิด AI แต่ Python ปิด (key/URL ไม่ผ่าน)
+    QString runModel_;
+    int aiOk_{0};
+    int aiFail_{0};
+    QLabel* modeLabel_{};
+    QProgressBar* progress_{};
 
     QString statusText_;
 

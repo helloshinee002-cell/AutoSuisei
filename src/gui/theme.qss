@@ -255,6 +255,34 @@ QProgressBar::chunk {
     border-radius: 3px;
 }
 
+/* ---------- v1.0.5: OCR tab - progress bar with text + mode badge (OCR / AI) ---------- */
+QProgressBar#ocrProgress {
+    height: 22px;
+    color: #E5F4F0;
+    font-size: 12px;
+}
+QLabel#modeBadge {
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+QLabel#modeBadge[mode="ai"] {
+    color: #34D399;
+    background-color: #103A2E;
+    border: 1px solid #10B981;
+}
+QLabel#modeBadge[mode="ocr"] {
+    color: #9FB4AF;
+    background-color: #13181B;
+    border: 1px solid #1F2628;
+}
+QLabel#modeBadge[mode="warn"] {
+    color: #FBBF24;
+    background-color: #2A2210;
+    border: 1px solid #B45309;
+}
+
 /* ---------- Splitter handle ---------- */
 QSplitter::handle {
     background-color: #1F2628;

@@ -14,8 +14,9 @@ Categories:
               (org/place-name reader removed 2026-06-21 — Thai handwriting OCR'd garbage)
 
 Outputs CSV with columns:
-    photo_index,filename,pc_no,serial_no,batch_id,photo_date,pc_range,
-    mean_confidence,line_count,warnings
+    photo_index,filename,pc_no,serial_no,serial_source,no_source,batch_id,photo_date,
+    pc_range,mean_confidence,line_count,warnings
+    (serial_source = barcode|ai|ocr, no_source = ai|ocr — v1.0.5 AI assist ดู ai_assist.py)
 """
 import csv
 import json
@@ -642,7 +643,7 @@ def _decode_datamatrix(im, timeout_ms: int = 2000) -> list[str]:
     คืน [] ถ้า lib ไม่มี/อ่านไม่ได้ (→ fallback OCR ทำงานต่อ)."""
     try:
         from pylibdmtx.pylibdmtx import decode
-    except ImportError:
+    except (ImportError, OSError):  # OSError: libdmtx-64.dll โหลดไม่ได้ (ขาด msvcr120.dll) — เหมือน pyzbar
         return []
     import cv2
     gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
@@ -684,7 +685,7 @@ def _zbar_decode_gray(gray) -> list[str]:
     — ตัด PDF417 (libzbar assert spam บน noise + ช้า) ออก. คืน [] ถ้าไม่มี lib."""
     try:
         from pyzbar.pyzbar import decode as zdecode, ZBarSymbol
-    except ImportError:
+    except (ImportError, OSError):  # OSError: libzbar-64.dll โหลดไม่ได้ (ขาด msvcr120.dll) → ไม่ให้ภาพพัง
         return []
     syms = [ZBarSymbol.CODE128, ZBarSymbol.CODE39, ZBarSymbol.QRCODE]
     out: list[str] = []
@@ -896,12 +897,19 @@ def main() -> int:
         print(f"rapidocr import: {e}", file=sys.stderr)
         return 2
 
+    from ai_assist import ai_read, config as ai_config, merge as ai_merge
+    ai_cfg = ai_config()  # None = AI ปิด (ไม่มี key หรือ key/URL ไม่ผ่าน)
+    if ai_cfg:
+        print(f"AI assist ON (model={ai_cfg['model']})", file=sys.stderr)
+    ai_ok = ai_fail = 0
+
     images = sorted([p for p in folder.iterdir() if p.is_file() and looks_like_image(p)])
     print(f"Found {len(images)} images. Category={category}. Loading PaddleOCR…",
           file=sys.stderr)
     if progress_json:
         print(json.dumps({"event": "start", "total": len(images),
-                          "category": category}), flush=True)
+                          "category": category, "ai": bool(ai_cfg),
+                          "ai_model": ai_cfg["model"] if ai_cfg else ""}), flush=True)
     t0 = time.time()
     engine = RapidOCR()
     print(f"Model loaded in {time.time()-t0:.1f}s. Processing…", file=sys.stderr)
@@ -914,7 +922,7 @@ def main() -> int:
     with out_csv.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
-            "photo_index", "filename", "pc_no", "serial_no", "serial_source",
+            "photo_index", "filename", "pc_no", "serial_no", "serial_source", "no_source",
             "batch_id", "photo_date", "pc_range",
             "mean_confidence", "line_count", "warnings",
         ])
@@ -927,7 +935,7 @@ def main() -> int:
                     raw = None
                     joined, mean_conf, line_count = ocr_with_rotation(engine, img, category)
             except Exception as e:  # noqa: BLE001
-                writer.writerow([0, img.name, "", "", "ocr", "", "", "", "", 0, f"OCR error: {e}"])
+                writer.writerow([0, img.name, "", "", "ocr", "ocr", "", "", "", "", 0, f"OCR error: {e}"])
                 if progress_json:
                     print(json.dumps({
                         "event": "row", "i": i, "total": len(images),
@@ -969,6 +977,14 @@ def main() -> int:
             else:
                 pc_no = extract_pc_no(joined, meta["pc_range"])
 
+            # v1.0.5 AI assist (ทุกภาพเมื่อมี key): barcode > AI > OCR — ไม่มี key = no-op
+            ai_res = ai_read(img, category) if ai_cfg else None
+            ai_status = "off" if not ai_cfg else ("ok" if ai_res else "fail")  # → GUI แสดงนับ AI ตอบ/ล้มเหลว
+            ai_ok += ai_status == "ok"
+            ai_fail += ai_status == "fail"
+            pc_no, serial, serial_source, no_source = ai_merge(
+                pc_no, serial, serial_source, ai_res, category, meta["pc_range"])
+
             warnings_list = []
             if not pc_no:
                 warnings_list.append("No. not found")
@@ -980,7 +996,7 @@ def main() -> int:
                 with_sn += 1
 
             writer.writerow([
-                meta["photo_index"], img.name, pc_no, serial, serial_source,
+                meta["photo_index"], img.name, pc_no, serial, serial_source, no_source,
                 meta["batch_id"], meta["photo_date"], meta["pc_range"],
                 f"{mean_conf:.3f}", line_count, "; ".join(warnings_list),
             ])
@@ -995,6 +1011,8 @@ def main() -> int:
                     "pc_no": pc_no,
                     "serial_no": serial,
                     "serial_source": serial_source,
+                    "no_source": no_source,
+                    "ai_status": ai_status,
                     "batch_id": meta["batch_id"],
                     "photo_date": meta["photo_date"],
                     "pc_range": meta["pc_range"],
@@ -1022,6 +1040,9 @@ def main() -> int:
             "with_sn": with_sn,
             "elapsed_sec": elapsed,
             "category": category,
+            "ai": bool(ai_cfg),
+            "ai_ok": ai_ok,
+            "ai_fail": ai_fail,
         }), flush=True)
     print(f"\n=== Summary (category={category}) ===", file=sys.stderr)
     print(f"Total: {len(images)} photos in {elapsed:.1f}s "

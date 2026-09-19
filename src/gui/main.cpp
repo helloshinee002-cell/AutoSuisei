@@ -6,6 +6,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QIcon>
+#include <QPalette>
 #include <QStandardPaths>
 
 #include "MainWindow.h"
@@ -24,6 +25,32 @@ std::filesystem::path dataDir() {
 }
 
 void applyTheme(QApplication& app) {
+    // 0. บังคับธีมมืดเสมอ (v1.0.5) — theme.qss ออกแบบเป็น light-on-dark แต่ส่วนที่ qss ไม่ได้ระบุพื้น (tab ที่ห่อ
+    //    QScrollArea, QDialog/QMessageBox) ใช้ system palette → Windows light mode = พื้นสว่าง ตัวอักษรอ่านไม่ออก.
+    //    Fusion + palette สีเดียวกับ theme.qss = หน้าตาเหมือนกันทุกเครื่อง ไม่ขึ้นกับ light/dark ของ Windows
+    app.setStyle("Fusion");
+    const QColor bg("#0B0F0E"), surface("#13181B"), input("#0F1416"), text("#E5F4F0"),
+        dim("#6B7B78"), accent("#10B981"), border("#1F2628");
+    QPalette p;
+    p.setColor(QPalette::Window, bg);
+    p.setColor(QPalette::WindowText, text);
+    p.setColor(QPalette::Base, input);
+    p.setColor(QPalette::AlternateBase, surface);
+    p.setColor(QPalette::Text, text);
+    p.setColor(QPalette::Button, surface);
+    p.setColor(QPalette::ButtonText, text);
+    p.setColor(QPalette::ToolTipBase, surface);
+    p.setColor(QPalette::ToolTipText, text);
+    p.setColor(QPalette::PlaceholderText, dim);
+    p.setColor(QPalette::Highlight, accent);
+    p.setColor(QPalette::HighlightedText, bg);
+    p.setColor(QPalette::Link, accent);
+    p.setColor(QPalette::Mid, border);
+    p.setColor(QPalette::Dark, border);
+    for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText})
+        p.setColor(QPalette::Disabled, role, dim);
+    app.setPalette(p);
+
     // 1. Bundled font (ADLaM Display) — Thai fallback handled by Qt's font substitution
     const int fid = QFontDatabase::addApplicationFont(
         ":/resources/fonts/ADLaMDisplay-Regular.ttf");
