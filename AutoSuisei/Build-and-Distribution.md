@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, build, release]
-updated: 2026-06-26
+updated: 2026-09-18
 ---
 
 # Build & Distribution
@@ -77,6 +77,20 @@ clang-tidy -p build/windows-x64-debug src/**/*.cpp
 
 > ไล่รุ่น: 0.9.0 → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) →
 > **1.0.0** monitor CN serial + version UI + GitHub auto-updater. *(push + `gh release create` = Phase 2b หลัง gh login)*
+
+## เครื่อง build ใหม่ (2026-09-18, v1.0.5)
+- toolchain: VS 2022 **BuildTools** (C++), CMake, Ninja, vcpkg `D:\vcpkg` (`VCPKG_ROOT`), Inno Setup (per-user
+  `%LOCALAPPDATA%\Programs\Inno Setup 6`), GitHub CLI, VC++ 2013 redist (pyzbar ต้องใช้ msvcr120.dll)
+- สคริปต์เลิก hardcode `C:\Users\hello\...`: output = `%USERPROFILE%\Backups\AutoSuisei` (`-OutDir` เปลี่ยนได้;
+  `.iss` รับ `/DBundleRoot`; path relative ถูกแปลงเป็น absolute ก่อน); CRT หาใน VS ทุก version/edition
+  (`<root>\<ver>\<edition>\VC\Redist\MSVC`) — **หาไม่เจอ = throw** (ห้าม ship bundle ที่ไม่มี CRT)
+- `setup_embedded_python.ps1` ติดตั้ง **pylibdmtx + pyzbar** ด้วยแล้ว (เดิมติดตั้งมือ → bundle จากสคริปต์เปล่าจะไม่มี barcode);
+  embedded-python เดิมที่ขาด lib → เติมให้ (ไม่ skip เงียบ)
+- `make_bundle.ps1` **throw ถ้า embedded python ไม่มี pyzbar/pylibdmtx**; ใส่ `msvcr120.dll` (VC++ 2013 — **ทั้ง
+  libzbar-64.dll และ libdmtx-64.dll ต้องใช้**) ที่ `python/` (โฟลเดอร์ของ python.exe อยู่ใน DLL search path ของ ctypes)
+- `make_update_package.ps1` เก็บ `python\msvcr120.dll` ไฟล์เดียวไว้ใน patch (ที่เหลือของ `python/` ตัดเหมือนเดิม) →
+  เครื่องที่อัปเดตผ่าน updater ได้ DLL นี้ด้วย (updater `xcopy /E`)
+- AI key **ไม่อยู่ใน bundle/installer** — ผู้ใช้กรอกใน AI Settings (QSettings HKCU)
 
 ## Scripts dir resolution
 - compile def `AUTOPILOT_SCRIPTS_DIR` ชี้ `source/scripts/` (override ด้วย env var ได้)

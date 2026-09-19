@@ -451,3 +451,25 @@ dataset donate จริงชุดใหญ่ `C:\Users\hello\Downloads\Donat
   ไทย → fusion เดิม → **ไม่ regress Photos-3-001** (explicit คืน '' / self-check ✓)
 - **ผล 1319**: No. **99.6% coverage / 100% (15/15 hand-verified)**, Serial 84% → `build/donatemore.csv`
 - gt: `build/donatemore_gt_sample.csv` (15 รูป). C++ ไม่แตะ
+
+---
+
+## Phase 13 — v1.0.5 AI assist (vision LLM ผ่าน LiteLLM) (2026-09-18)
+**เป้าหมาย**: เพิ่มความแม่น No./Serial โดยส่งภาพให้ vision LLM (`gemma4:31b-cloud` ที่ `https://litellm.mashirotk.site`)
+**ตัดสินใจกับ user**: key กรอกในแอป (AI Settings → QSettings HKCU, ไม่อยู่ในรีโป/installer) · เรียก AI **ทุกภาพ** ·
+ลำดับความเชื่อ **barcode > AI > OCR**
+
+- `scripts/ai_assist.py` (ใหม่, stdlib urllib — ไม่เพิ่ม pip dep): `ai_read` (ย่อภาพ ≤1600px → `/v1/chat/completions`,
+  ขอ JSON `{no, serial}`, error ใด ๆ → None) + `merge` (serial: barcode คงไว้, AI ผ่าน validator ของหมวด → `ai`;
+  No.: AI เลขล้วน 1–4 หลัก + range hint → `no_source=ai`) + `--selfcheck`
+- เสียบ: `bulk_extract.py` (ต่อภาพ) + `ocr_worker.py` (หลัง best-of-N → 1 call/ภาพ); CSV/JSON เพิ่ม `no_source`
+- C++: `AiSettings.{h,cpp}` (dialog + Test connection GET `/v1/models`) · SidebarNav ปุ่ม "AI Settings ● ON/○ OFF" ·
+  OcrTab/WatchTab `setProcessEnvironment(aiProcessEnvironment())` (key ทาง env ไม่ใช่ argv) · `noSource` ใน
+  AssetInfo/ReviewRow/ReviewModel · Review คอลัมน์ Src แสดง "AI" / "No.:AI"
+- **Acceptance**: ctest ผ่าน + 2 test ใหม่ (`NoSource_*`); selfcheck Python ผ่าน; ไม่มี key → ผลเหมือน v1.0.4;
+  มี key → barcode ไม่ถูกทับ; user ทดสอบกับ key จริงก่อน release (test-before-push)
+- **Risks**: latency +2–10s/ภาพ (sequential — ถ้าช้าเกินค่อย thread pool); ภาพถูกส่งออกไป server (แจ้งใน dialog);
+  ชื่อ model จริงบน LiteLLM ต้องยืนยันด้วย Test connection; model ต้องรองรับภาพ
+- พบ+แก้ระหว่างทาง: `ocr_worker.py` stdin ไม่ใช่ UTF-8 → Watch เปิดไฟล์ในโฟลเดอร์ไทยไม่ได้ ("not a file");
+  pyzbar โหลด DLL ไม่ได้ = `OSError` (ไม่ใช่ ImportError) → ภาพนั้นพัง; `setup_embedded_python.ps1` ไม่ติดตั้ง
+  pylibdmtx/pyzbar; สคริปต์ bundle/installer hardcode `C:\Users\hello\...` + VS `18\Community`

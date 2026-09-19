@@ -1,6 +1,6 @@
 ---
 tags: [autosuisei, ocr, parser, core]
-updated: 2026-06-26
+updated: 2026-09-18
 ---
 
 # ⭐ OCR & Parser — หัวใจของระบบ
@@ -83,6 +83,16 @@ Dell barcode encode serial มาเป๊ะ → **อ่าน barcode ก่�
 - ⚠️ **single-source**: `read_serial_barcode` อยู่ใน `bulk_extract.py`, `ocr_worker.py` import ใช้ → wiring barcode-first ต้อง mirror 2 ไฟล์
 - ผล: PC serial coverage **+10pp**; donate disagreement **8/8 barcode ถูก OCR ผิด** ([[Accuracy-Results]] · [[logs/2026-06-26-barcode-first-serial]])
 - ⚠️ Code39/128 **ไม่มี ECC** แรงเท่า Data Matrix → ต้อง measurement-gate + spot-check ก่อนเชื่อ; dep ใหม่ offline ([[Build-and-Distribution]])
+
+## AI assist (v1.0.5) — vision LLM ผ่าน LiteLLM
+- `scripts/ai_assist.py`: `ai_read(img, category)` ส่งภาพ (ย่อ ≤1600px, JPEG) → `POST {URL}/v1/chat/completions`
+  (model default `gemma4:31b-cloud`) ขอ JSON `{no, serial}` พร้อม hint รูปแบบต่อหมวด; error ใด ๆ → None
+- `merge(...)`: **barcode > AI > OCR** — serial barcode ไม่ถูกทับ; AI serial ต้องผ่าน validator ของหมวด
+  (`_valid_dell_tag` / `MONITOR_SERIAL_RE` + `_reformat_cn` / accessory alnum-dash ไม่ใช่ CBA); AI No. = เลข 1–4 หลัก
+  + อยู่ใน range hint → field `no_source="ai"`, `serial_source="ai"`
+- เรียก **ทุกภาพ** เมื่อมี env `AUTOSUISEI_AI_KEY` (GUI ใส่ให้จาก AI Settings); ไม่มี = พฤติกรรมเดิม
+- ⚠️ mirror: wiring อยู่ทั้ง `bulk_extract.py` (ต่อภาพ) และ `ocr_worker.py` (หลัง best-of-N) — C++ `AssetExtractor` ไม่เกี่ยว
+- ⚠️ `ocr_worker.py` ต้อง `sys.stdin.reconfigure(encoding="utf-8")` — Qt เขียน path เป็น UTF-8 (fix v1.0.5)
 
 ## Rotation fallback — `ocr_with_rotation()`
 ภาพถ่ายมือถือมักเอียง/กลับหัว → ลองหลายมุมแล้วเลือกผลดีสุด

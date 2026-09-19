@@ -1,6 +1,6 @@
 ---
 tags: [moc, autosuisei]
-updated: 2026-06-26
+updated: 2026-09-19
 ---
 
 # 🏠 AutoSuisei — Knowledge Vault
@@ -9,12 +9,12 @@ updated: 2026-06-26
 > ที่ใช้ OCR ดึง **PC No. + Dell serial** จากภาพถ่ายมือถือของ PC ที่ wipe-off แล้ว →
 > review/แก้ใน GUI → rename ไฟล์ภาพอัตโนมัติ
 
-## สถานะ (ณ 2026-06-26)
-- **เวอร์ชัน**: **v1.0.0** — Monitor barcode CN serial + version UI (ซ้ายล่าง) + GitHub auto-updater (Check/Update) (build `AutoSuisei-Setup-1.0.0.exe`)
-  - ไล่จาก v0.9.0 (rebrand) → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) → **1.0.0** monitor CN + updater
-- **Git**: branch `main` — **pushed + released v1.0.0** ✅ (https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.0 — assets: installer + update-package.zip)
+## สถานะ (ณ 2026-09-19)
+- **เวอร์ชัน**: **v1.0.5** — AI assist (vision LLM ผ่าน LiteLLM, barcode > AI > OCR) — รอ user ทดสอบก่อน release; released ล่าสุด **v1.0.4** — ดู [[changelog]]
+  - ไล่จาก v0.9.0 (rebrand) → 0.9.5 Monitor No. fusion → 0.9.6 Data Matrix serial (PC) → 0.9.7 Code128 (desktop/donate) → 1.0.0 monitor CN + updater → 1.0.1–1.0.4 Watch best-of-N + Review layout → **1.0.5** AI assist
+- **Git**: branch `main` (commit ตรง, ไม่ใช้ PR) — released ล่าสุด v1.0.4 ✅ (https://github.com/helloshinee002-cell/AutoSuisei/releases)
 - **Remote**: https://github.com/helloshinee002-cell/AutoSuisei.git
-- **กำลังทำต่อ (ส่วนที่ 2)**: commit/push · bump 1.0.0 · monitor barcode/QR · version UI ซ้ายล่าง + Check/Update Version. Monitor No. ยังรอ retrain (recurring-loop)
+- **กำลังทำต่อ**: v1.0.5 AI assist ([[logs/2026-09-18-v1.0.5-ai-assist]]) — user ทดสอบ → release. Monitor No. / donate เขียนมือ ยังรอ retrain (recurring-loop)
 - **Wiki**: [[index]] (entry-point) · [[CLAUDE]] (กฎ + Mandatory Wiki Update) · [[changelog]] · `logs/`
 
 ## Quick facts
@@ -26,7 +26,7 @@ updated: 2026-06-26
 | GUI         | Qt 6 Widgets — sidebar nav 240px + 3 หน้า OCR / Watch / Review (responsive, keyboard QOL) |
 | OCR engine  | PaddleOCR ผ่าน `rapidocr-onnxruntime` (~97.9%) + YOLOv8 sticker-digit model (donate No.) |
 | OCR หมวด    | PC&Laptop / Monitor / Accessory / **donate** (No. + Serial)    |
-| Tests       | GoogleTest, **109 tests** (`autopilot_tests`)                  |
+| Tests       | GoogleTest, **120 tests** (`autopilot_tests`, v1.0.5)          |
 | ความแม่นรวม | 6 datasets — ดู [[Accuracy-Results]]                           |
 
 ## 🗺️ Index

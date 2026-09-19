@@ -1,14 +1,15 @@
 ---
 tags: [changelog, autosuisei]
-updated: 2026-06-27
+updated: 2026-09-18
 ---
 
 # Changelog
 
 [[index]] · [[Home]] · รายละเอียดแต่ละครั้งดู `logs/`
 
-> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.4** ✅ [released บน GitHub](https://github.com/helloshinee002-cell/AutoSuisei/releases/tag/v1.0.4)
+> 1 บรรทัด/release|งาน · ใหม่บนสุด · เวอร์ชันปัจจุบัน = **1.0.5** (AI assist — รอ user ทดสอบก่อน release)
 
+- **1.0.5** (feat+fix, 2026-09-18) — **AI assist**: ส่งทุกภาพให้ vision LLM (`gemma4:31b-cloud` ผ่าน LiteLLM `litellm.mashirotk.site`) ช่วยอ่าน No./Serial · ลำดับ **barcode > AI > OCR** · หน้า **AI Settings** (key เก็บต่อเครื่อง, Test connection) · Src แสดง "AI". + fix Watch โฟลเดอร์ไทย (stdin UTF-8), pyzbar OSError, สคริปต์ build/installer ใช้บนเครื่องใหม่ได้ + **บังคับธีมมืด** (Fusion + dark palette — แก้ UI อ่านไม่ออกบน Windows light mode) + หน้า OCR มี **ป้ายโหมด OCR / AI** (นับ AI ตอบ/ล้มเหลว) + **หลอดโหลด** + AI Settings เลือก model จาก dropdown (ตาม virtual key, **เฉพาะ model ที่อ่านภาพได้**) + Review แยกคอลัมน์ **No.จาก / Serialจาก**. → [[logs/2026-09-18-v1.0.5-ai-assist]]
 - **1.0.4** (refactor, 2026-06-27) — **Review layout polish**: title กลับขึ้นบน (revert image-first) · ปุ่มล่างขวาแถวเดียว Save→Clear→Rename · Folder+Verified ลงล่างสุดแถวเดียว → รูปใหญ่ขึ้น. + **กฎ test-before-push** (build ให้ user เทสก่อน push). → [[logs/2026-06-27-v1.0.4-review-layout-polish]]
 - **1.0.3** (refactor+feat, 2026-06-27) — **Review image-first**: ย้าย header ลงล่าง + ตาราง/รูปชิดขอบบน (รูปใหญ่สุด) · ตาราง **Date→Category** (+ OcrTab เซ็ต category) · ลบช่อง **Batch** ในฟอร์ม · **Watch ลบคอลัมน์ Date** · Installer **Publisher = MashiroTK** · **window/taskbar icon = AutoSuisei.ico** (setWindowIcon + qrc). → [[logs/2026-06-27-v1.0.3-review-layout-branding]]
 - **1.0.2** (feat+fix, 2026-06-27) — Watch: คอลัมน์ **Confidence → Category** · monitor **CN- ชนะ Service Tag เสมอ** ใน best-of-N (`is_cn` tier เหนือ barcode) · Review: ลบ Load CSV/Images folder/CSV-label → **รูปใหญ่ขึ้น** (splitter 1:2) · OCR ปุ่ม Donate → "Donate PC&Laptop". → [[logs/2026-06-27-v1.0.2-watch-category-cn]]
