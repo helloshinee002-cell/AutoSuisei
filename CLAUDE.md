@@ -233,3 +233,4 @@ Key learnings (เพิ่ม):
 ## เมื่อทำงานเป็น worker ใน Orchestrator.inc (AO)
 - อ่าน `D:\WorkSpace\1Man\_AO_WORKER.md` ก่อนเริ่มงาน (กติกากลาง)
 - เอกสารทีม/สถานะ: `D:\WorkSpace\1Man\AutoSuisei\`
+- Reviewer: อ่าน `D:\WorkSpace\1Man\_AO_REVIEWER.md` — เทสต์ผ่าน + ตรวจผ่าน = merge บน GitHub ได้เลย (deploy ลงเครื่องจริงผู้ใช้สั่ง)
