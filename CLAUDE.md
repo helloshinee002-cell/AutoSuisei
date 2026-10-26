@@ -233,4 +233,5 @@ Key learnings (เพิ่ม):
 ## เมื่อทำงานเป็น worker ใน Orchestrator.inc (AO)
 - อ่าน `D:\WorkSpace\1Man\_AO_WORKER.md` ก่อนเริ่มงาน (กติกากลาง)
 - เอกสารทีม/สถานะ: `D:\WorkSpace\1Man\AutoSuisei\`
+- เทสต์ (ยืนยันแล้ว 120/120 ผ่าน, Windows): ใน cmd โหลด `"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"` แล้ว `set VCPKG_ROOT=D:\vcpkg` และ `set "TESSDATA_PREFIX=C:\Program Files\Tesseract-OCR\tessdata"` (**ต้องตั้งก่อน `cmake --preset` เพราะค่าถูกฝังตอน configure** ไม่งั้น OcrEngine.* fail 3 ตัว) → `cmake --preset windows-x64-debug` → `cmake --build --preset windows-x64-debug` → `ctest --preset windows-x64-debug --output-on-failure` · build ครั้งแรกใช้เวลา ~40 นาที (vcpkg Qt/OpenCV) · `tests/data/*.png` ถูก gitignore → ใน worktree ต้องอ่านจาก `D:\WorkSpace\AutoSuisei\tests\data\` แล้วคัดลอกมาที่ `tests/data/` ก่อน (ไม่งั้น ImageMatcher.* fail 3 ตัว) · ไม่มีเทสต์ที่แตะระบบจริง (ไม่มีข้อห้ามรัน)
 - Reviewer: อ่าน `D:\WorkSpace\1Man\_AO_REVIEWER.md` — เทสต์ผ่าน + ตรวจผ่าน = merge บน GitHub ได้เลย (deploy ลงเครื่องจริงผู้ใช้สั่ง)
