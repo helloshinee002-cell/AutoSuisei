@@ -229,3 +229,7 @@ Key learnings (เพิ่ม):
 - **PaddleOCR limitations**: ตัวเลขเดี่ยวขนาดใหญ่บนกระดาษขาว (เช่น "1", "2") OCR detector อาจ skip
 - **QSS + setItemWidget**: `padding` บน `::item` ทำให้ widget ใน setItemWidget แคบจนตัดข้อความ — ลบออก
 - **Native window frame**: ตัดสินใจไม่ทำ frameless titlebar (รักษา Windows Snap / accessibility)
+
+## เมื่อทำงานเป็น worker ใน Orchestrator.inc (AO)
+- อ่าน `D:\WorkSpace\1Man\_AO_WORKER.md` ก่อนเริ่มงาน (กติกากลาง)
+- เอกสารทีม/สถานะ: `D:\WorkSpace\1Man\AutoSuisei\`
